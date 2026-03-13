@@ -1,0 +1,29 @@
+{
+  "name": "Sample Candidate",
+  "education": [
+    "B.S. Cybersecurity"
+  ],
+  "experience": [
+    "SOC internship",
+    "IT support role",
+    "network monitoring"
+  ],
+  "skills": [
+    "Splunk",
+    "Python",
+    "Nessus",
+    "Windows",
+    "Linux",
+    "Network Troubleshooting"
+  ],
+  "certifications": [
+    "ISC2 CC",
+    "Security+"
+  ],
+  "interests": [
+    "SOC",
+    "Incident Response",
+    "Critical Infrastructure Security"
+  ],
+  "clearance_context": "Reference only verified clearance-related facts."
+}
