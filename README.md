@@ -122,9 +122,8 @@ tldextract – company domain parsing
   * python app.py
   
 * **Review output**
-
-**Open:**
-  * output/enriched_jobs.csv
+  * **Open:**
+    * output/enriched_jobs.csv
   
 ## Repository structure
 
