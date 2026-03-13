@@ -88,6 +88,7 @@ tldextract – company domain parsing
 
 ## v1 Setup
 * **Clone the repository**
+```text
   * git clone https://github.com/elijahbeese/recruiter-recon-ai.git
   * cd recruiter-recon-ai
   
