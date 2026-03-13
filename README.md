@@ -90,8 +90,6 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 pip install -r requirements.txt
 ```
 
-## Repo Structure
-
 ## Repository Structure
 
 ```
