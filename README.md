@@ -88,28 +88,27 @@ tldextract – company domain parsing
 
 ## v1 Setup
 * **Clone the repository**
-```text
-  * git clone https://github.com/elijahbeese/recruiter-recon-ai.git
-  * cd recruiter-recon-ai
+  * `git clone https://github.com/elijahbeese/recruiter-recon-ai.git`
+  * `cd recruiter-recon-ai`
   
  * **Create and activate a virtual environment**
    * **macOS / Linux**
-     * python3 -m venv .venv
-     * source .venv/bin/activate
+     * `python3 -m venv .venv`
+     * `source .venv/bin/activate`
    * **Windows PowerShell**
-     * python -m venv .venv
-     * .venv\Scripts\Activate.ps1
+     * `python -m venv .venv`
+     * `.venv\Scripts\Activate.ps1`
   
 * **Install dependencies**
-  * pip install -r requirements.txt
+  * `pip install -r requirements.txt`
   
 * **Configure environment variables**
   * Copy .env.example to .env.
   
 * **macOS / Linux**
-  * cp .env.example .env
-  * Windows PowerShell
-  * copy .env.example .env
+  * `cp .env.example .env`
+* **Windows PowerShell**
+  * `copy .env.example .env`
     
   * Then fill in your API keys.
   
@@ -120,7 +119,7 @@ tldextract – company domain parsing
   * Populate input_jobs.csv with company names, domains, job titles, URLs, and locations.
   
 * **Run the script**
-  * python app.py
+  * `python app.py`
   
 * **Review output**
   * **Open:**
