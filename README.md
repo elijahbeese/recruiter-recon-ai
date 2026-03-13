@@ -4,7 +4,7 @@
 
 # recruiter-recon-ai
 
-Private AI-assisted job targeting pipeline for cybersecurity roles.
+AI-assisted job targeting pipeline for cybersecurity roles.
 
 This project helps automate the front end of a job search workflow by turning job postings into structured, reviewable data. Instead of manually scanning roles one at a time, the script pulls job information, analyzes required skills and qualifications, compares them against a candidate profile, assigns a fit score, and attempts to identify recruiter or recruiting contacts for manual verification.
 
