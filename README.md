@@ -91,16 +91,21 @@ tldextract – company domain parsing
 1. Clone the repository
 
 git clone https://github.com/elijahbeese/recruiter-recon-ai.git
+
 cd recruiter-recon-ai
 
 2. Create and activate a virtual environment
 
 macOS / Linux
+
 python3 -m venv .venv
+
 source .venv/bin/activate
 
 Windows PowerShell
+
 python -m venv .venv
+
 .venv\Scripts\Activate.ps1
 
 3. Install dependencies
