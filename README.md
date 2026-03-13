@@ -84,6 +84,12 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * dotenv – API configuration
 * tldextract – company domain parsing
 
+## Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Repo Structure
 
 ## Repository Structure
