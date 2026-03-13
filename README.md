@@ -15,6 +15,16 @@ This is designed as a review-first workflow, not a blind outreach machine.
 - Uses Hunter to find likely recruiter or recruiting contacts by company domain
 - Exports enriched results to CSV for human review
 
+## How It Works
+
+1. Job URLs are added to a seed spreadsheet or CSV.
+2. The script fetches the job page text.
+3. An LLM extracts skills, experience requirements, and role characteristics.
+4. The system compares the job against a structured candidate profile.
+5. A fit score is generated based on skill alignment and role criteria.
+6. The company domain is analyzed to identify likely recruiter or talent contacts.
+7. The results are exported to a structured spreadsheet for manual review.
+
 ## Why this exists
 
 Hiring pipelines increasingly rely on automated systems to parse resumes and filter candidates before a recruiter ever reads them. This project takes the opposite-side view of that problem and applies automation to the job search itself.
