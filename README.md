@@ -87,8 +87,13 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 ## Repo Structure
 
 recruiter-recon-ai
+
 ├── README.md
+
 ├── LICENSE
-├── assets/           # diagrams and screenshots
+
+├── assets/   # diagrams and screenshots
+
 ├── samples/          # sample input/output files
+
 └── scripts/          # v1 implementation
