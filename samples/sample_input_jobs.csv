@@ -1,0 +1,4 @@
+company_name,company_domain,job_title,job_url,job_location,recruiter_name,notes
+Example Defense Corp,exampledefense.com,Junior SOC Analyst,https://example.com/job1,Virginia,,
+Utility Cyber Group,utilitycyber.com,Cybersecurity Analyst I,https://example.com/job2,Florida,,
+SecureGov Systems,securegovsystems.com,Entry-Level Incident Response Analyst,https://example.com/job3,Remote,,
