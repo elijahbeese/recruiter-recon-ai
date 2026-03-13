@@ -10,7 +10,7 @@ This project helps automate the front end of a job search workflow by turning jo
 
 This is designed as a review-first workflow, not a blind outreach machine.
 
-## What it does
+## Features
 
 - Reads seed job targets from CSV or Google Sheets
 - Pulls public job description text from job URLs
@@ -35,48 +35,7 @@ Hiring pipelines increasingly rely on automated systems to parse resumes and fil
 
 Instead of manually reviewing hundreds of roles, this workflow identifies which jobs are most worth pursuing and prepares structured outreach intelligence for review.
 
-## Core features
-
-- Job page text extraction
-- Skill and qualification parsing
-- Entry-level fit classification
-- Clearance requirement classification
-- Overall fit scoring
-- Recruiter/contact enrichment
-- Structured spreadsheet export
-- Optional Google Sheets support
-
-## Tech Stack
-
-Python
-
-OpenAI API – job description analysis and skill extraction  
-Hunter API – recruiter and talent contact discovery  
-BeautifulSoup – job page parsing  
-Pandas – structured data processing  
-dotenv – API configuration  
-tldextract – company domain parsing
-
 ## Workflow
-
-1. Seed jobs are added to `input_jobs.csv` or a Google Sheet
-2. The script fetches job page text from each URL
-3. OpenAI analyzes the posting against a candidate profile
-4. The script assigns a fit score and extracts job-relevant fields
-5. Hunter performs contact discovery by company domain
-6. Results are written to `output/enriched_jobs.csv`
-7. Contacts and opportunities are manually verified before any outreach
-
-## v1 Features
-
-- Reads seed job targets from CSV
-- Pulls public job description text from job URLs
-- Uses the OpenAI API to extract requirements and classify fit
-- Scores alignment based on entry-level suitability, clearance language, and skills match
-- Uses Hunter to find likely recruiter or recruiting contacts by company domain
-- Exports enriched results to CSV for human review
-
-## v1 Workflow
 
 1. Add jobs to `input_jobs.csv`
 2. Run the script
@@ -86,7 +45,7 @@ tldextract – company domain parsing
 6. Results are written to `output/enriched_jobs.csv`
 7. You manually review before any outreach
 
-## v1 Setup
+## Setup
 * **Clone the repository**
   * `git clone https://github.com/elijahbeese/recruiter-recon-ai.git`
   * `cd recruiter-recon-ai`
@@ -124,19 +83,13 @@ tldextract – company domain parsing
 * **Review output**
   * **Open:**
     * output/enriched_jobs.csv
-  
-## Repository structure
+   
+## Tech Stack
 
-```text
-recruiter-recon-ai/
-├── README.md
-├── requirements.txt
-├── .env.example
-├── .gitignore
-├── app.py
-├── candidate_profile.json
-├── input_jobs.csv
-├── output/
-│   └── enriched_jobs.csv
-└── credentials/
-    └── credentials.json
+* Python
+* OpenAI API – job description analysis and skill extraction
+* Hunter API – recruiter and talent contact discovery
+* BeautifulSoup – job page parsing
+* Pandas – structured data processing
+* dotenv – API configuration
+* tldextract – company domain parsing
