@@ -68,7 +68,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
   * Populate input_jobs.csv with company names, domains, job titles, URLs, and locations.
   
 * **Run the script**
-  * `python app.py`
+  * `python scripts/v1.0.0.py`
   
 * **Review output**
   * **Open:**
@@ -100,7 +100,7 @@ recruiter-recon-ai
 ├── .env.example
 ├── README.md
 ├── LICENSE
-├── requirements.md
+├── requirements.txt
 ├── assets/
 ├── samples/
 └── scripts/
