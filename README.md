@@ -19,7 +19,7 @@ This is designed as a review-first workflow, not a blind outreach machine.
 - Uses Hunter to find likely recruiter or recruiting contacts by company domain
 - Exports enriched results to CSV for human review
 
-## How It Works
+## Workflow
 
 1. Job URLs are added to a seed spreadsheet or CSV.
 2. The script fetches the job page text.
@@ -34,16 +34,6 @@ This is designed as a review-first workflow, not a blind outreach machine.
 Hiring pipelines increasingly rely on automated systems to parse resumes and filter candidates before a recruiter ever reads them. This project takes the opposite-side view of that problem and applies automation to the job search itself.
 
 Instead of manually reviewing hundreds of roles, this workflow identifies which jobs are most worth pursuing and prepares structured outreach intelligence for review.
-
-## Workflow
-
-1. Add jobs to `input_jobs.csv`
-2. Run the script
-3. The script fetches job text from each URL
-4. OpenAI analyzes the posting against your candidate profile
-5. Hunter searches for likely recruiting contacts by domain
-6. Results are written to `output/enriched_jobs.csv`
-7. You manually review before any outreach
 
 ## Setup
 * **Clone the repository**
