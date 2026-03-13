@@ -92,7 +92,7 @@ tldextract – company domain parsing
   * `cd recruiter-recon-ai`
   
  * **Create and activate a virtual environment**
-   * **macOS / Linux**
+   * * **macOS / Linux**
      * `python3 -m venv .venv`
      * `source .venv/bin/activate`
    * **Windows PowerShell**
