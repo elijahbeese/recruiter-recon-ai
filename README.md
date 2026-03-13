@@ -67,6 +67,25 @@ tldextract – company domain parsing
 6. Results are written to `output/enriched_jobs.csv`
 7. Contacts and opportunities are manually verified before any outreach
 
+## v1 Features
+
+- Reads seed job targets from CSV
+- Pulls public job description text from job URLs
+- Uses the OpenAI API to extract requirements and classify fit
+- Scores alignment based on entry-level suitability, clearance language, and skills match
+- Uses Hunter to find likely recruiter or recruiting contacts by company domain
+- Exports enriched results to CSV for human review
+
+## v1 Workflow
+
+1. Add jobs to `input_jobs.csv`
+2. Run the script
+3. The script fetches job text from each URL
+4. OpenAI analyzes the posting against your candidate profile
+5. Hunter searches for likely recruiting contacts by domain
+6. Results are written to `output/enriched_jobs.csv`
+7. You manually review before any outreach
+
 ## Repository structure
 
 ```text
