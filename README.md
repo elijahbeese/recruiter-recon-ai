@@ -89,56 +89,47 @@ tldextract – company domain parsing
 ## v1 Setup
 
 1. Clone the repository
-
-git clone https://github.com/elijahbeese/recruiter-recon-ai.git
-
-cd recruiter-recon-ai
+*git clone https://github.com/elijahbeese/recruiter-recon-ai.git
+*cd recruiter-recon-ai
 
 2. Create and activate a virtual environment
 
-macOS / Linux
+**macOS / Linux
+*python3 -m venv .venv
+*source .venv/bin/activate
 
-python3 -m venv .venv
-
-source .venv/bin/activate
-
-Windows PowerShell
-
-python -m venv .venv
-
-.venv\Scripts\Activate.ps1
+**Windows PowerShell
+*python -m venv .venv
+*.venv\Scripts\Activate.ps1
 
 3. Install dependencies
 
-pip install -r requirements.txt
+*pip install -r requirements.txt
 
 4. Configure environment variables
-
 Copy .env.example to .env.
 
-macOS / Linux
-cp .env.example .env
-Windows PowerShell
-copy .env.example .env
+**macOS / Linux
+*cp .env.example .env
+*Windows PowerShell
+*copy .env.example .env
 
 Then fill in your API keys.
 
 5. Edit your candidate profile
-
 Update candidate_profile.json with your actual experience, skills, certifications, interests, and conservative clearance wording.
 
 6. Add job targets
-
 Populate input_jobs.csv with company names, domains, job titles, URLs, and locations.
 
 7. Run the script
-python app.py
-8. Review output
+*python app.py
 
-Open:
+9. Review output
 
-output/enriched_jobs.csv
-Required APIs
+**Open:
+*output/enriched_jobs.csv
+
 ## Repository structure
 
 ```text
