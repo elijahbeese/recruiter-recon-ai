@@ -42,6 +42,17 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 - Structured spreadsheet export
 - Optional Google Sheets support
 
+## Tech Stack
+
+Python
+
+OpenAI API – job description analysis and skill extraction  
+Hunter API – recruiter and talent contact discovery  
+BeautifulSoup – job page parsing  
+Pandas – structured data processing  
+dotenv – API configuration  
+tldextract – company domain parsing
+
 ## Workflow
 
 1. Seed jobs are added to `input_jobs.csv` or a Google Sheet
