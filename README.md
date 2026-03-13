@@ -93,8 +93,8 @@ tldextract – company domain parsing
   
  * **Create and activate a virtual environment**
    *  **macOS / Linux**
-     * `python3 -m venv .venv`
-     * `source .venv/bin/activate`
+      * `python3 -m venv .venv`
+      * `source .venv/bin/activate`
    * **Windows PowerShell**
      * `python -m venv .venv`
      * `.venv\Scripts\Activate.ps1`
