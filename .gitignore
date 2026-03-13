@@ -1,0 +1,13 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Output files
+output/
+
+# macOS junk
+.DS_Store
