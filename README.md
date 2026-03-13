@@ -90,9 +90,13 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 
 ```
 recruiter-recon-ai
+├── .gitignore
+├── .env.example
 ├── README.md
 ├── LICENSE
-├── assets/           # diagrams and screenshots
-├── samples/          # sample input/output files
-└── scripts/          # v1 implementation
+├── requirements.md
+├── assets/
+├── samples/
+└── scripts/
+    └── v1.0.0.py
 ```
