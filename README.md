@@ -60,8 +60,9 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
   * `copy .env.example .env`
     
 * **Then fill in your API keys.**
-  * `OPENAI_API_KEY=your_openai_key`
-  * `HUNTER_API_KEY=your_hunter_key`
+  * `nano .env`
+    * `OPENAI_API_KEY=your_openai_key`
+    * `HUNTER_API_KEY=your_hunter_key`
   
 * **Edit your candidate profile**
   * Update candidate_profile.json with your actual experience, skills, certifications, interests, and conservative clearance wording.
