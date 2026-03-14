@@ -71,7 +71,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
   
 * **Run the script**
   * `python scripts/v1.0.0.py`
-  * **Example Output:**
+* **Example Output:**
 ```
 Processing: Motorola Solutions | Security Operations Technician
 Processing: CACI | Junior Cyber Analyst
