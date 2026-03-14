@@ -51,9 +51,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * **Install dependencies**
   * `pip install -r requirements.txt`
   
-* **Configure environment variables**
-  * Copy .env.example to .env.
-  
+* **Configure environment variables**  
   * **macOS / Linux**
     * `cp .env.example .env`
   * **Windows PowerShell**
