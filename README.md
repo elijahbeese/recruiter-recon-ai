@@ -65,6 +65,12 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
   
 * **Edit your candidate profile**
   * Update candidate_profile.json with your actual experience, skills, certifications, interests, and conservative clearance wording.
+ 
+## Example Candidate Profile
+
+<p align="center">
+  <img src="assets/sample-profile.png" width="700">
+</p>  
   
 * **Add job targets**
   * Populate input_jobs.csv with company names, domains, job titles, URLs, and locations.
