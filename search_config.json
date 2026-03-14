@@ -1,0 +1,31 @@
+{
+  "keywords": [
+    "cybersecurity analyst",
+    "it security analyst",
+    "soc analyst",
+    "security operations technician",
+    "incident response analyst",
+    "network security analyst"
+  ],
+  "locations": [
+    "United States",
+    "Florida",
+    "Texas",
+    "Maryland",
+    "Washington DC",
+    "Virginia",
+    "Remote"
+  ],
+  "filters": {
+    "entry_level_only": true,
+    "us_based_only": true,
+    "clearance_preferred": true
+  },
+  "target_industries": [
+    "defense",
+    "government",
+    "critical infrastructure",
+    "utilities"
+  ],
+  "max_results_per_query": 20
+}
