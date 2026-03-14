@@ -97,7 +97,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * dotenv – API configuration
 * tldextract – company domain parsing
 
-## Repository Structure
+## v1 Repository Structure
 
 ```
 recruiter-recon-ai
@@ -149,3 +149,21 @@ Automated job discovery will be implemented in **Version 2**.
 ## Recruiter Recon AI – Version 2
 
 Version 2 adds AI-driven job discovery by extracting a structured candidate profile directly from a resume and using that profile to identify and rank relevant opportunities.
+
+### v2 Repository Structure
+```
+recruiter-recon-ai/
+├── resumes/
+│   └── elijah_resume.docx
+├── candidate_profile.json
+├── scripts/
+│   ├── parse_resume_v2.py
+│   ├── build_profile_v2.py
+│   ├── discover_jobs_v2.py
+│   ├── score_jobs_v2.py
+│   └── run_v2.py
+└── output/
+    ├── candidate_profile_generated.json
+    ├── discovered_jobs.csv
+    └── enriched_jobs.csv
+```
