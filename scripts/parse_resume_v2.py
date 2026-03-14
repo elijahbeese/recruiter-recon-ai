@@ -42,6 +42,6 @@ def parse_resume(path_str: str) -> str:
 
 
 if __name__ == "__main__":
-    sample_path = "resumes/resume.docx"
+    sample_path = "resumes/resume.pdf"
     text = parse_resume(sample_path)
     print(text[:3000])
