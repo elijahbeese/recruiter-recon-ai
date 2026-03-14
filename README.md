@@ -154,7 +154,7 @@ Version 2 adds AI-driven job discovery by extracting a structured candidate prof
 ```
 recruiter-recon-ai/
 ├── resumes/
-│   └── elijah_resume.docx
+│   └── resume.docx
 ├── candidate_profile.json
 ├── scripts/
 │   ├── parse_resume_v2.py
