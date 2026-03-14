@@ -54,10 +54,10 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * **Configure environment variables**
   * Copy .env.example to .env.
   
-* **macOS / Linux**
-  * `cp .env.example .env`
-* **Windows PowerShell**
-  * `copy .env.example .env`
+  * **macOS / Linux**
+    * `cp .env.example .env`
+  * **Windows PowerShell**
+    * `copy .env.example .env`
     
 * **Then fill in your API keys.**
   * `nano .env`
