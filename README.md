@@ -77,6 +77,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 <p align="center">
   <img src="assets/sample-output.png" width="700">
 </p>  
+
 * **Review output**
   * **Open:**
     * output/enriched_jobs.csv
