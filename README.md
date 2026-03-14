@@ -148,4 +148,4 @@ Automated job discovery will be implemented in **Version 2**.
 
 ## Recruiter Recon AI – Version 2
 
-Version 2 adds automated job discovery. Instead of manually supplying job postings in `input_jobs.csv`, the system searches for cybersecurity job listings based on a configurable set of keywords, locations, and filters, then passes discovered jobs into the enrichment pipeline.
+Version 2 adds AI-driven job discovery by extracting a structured candidate profile directly from a resume and using that profile to identify and rank relevant opportunities.
