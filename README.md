@@ -150,7 +150,7 @@ Automated job discovery will be implemented in **Version 2**.
 
 Version 2 will accept a resume as input, automatically extract a structured candidate profile using AI, and use that profile to discover, rank, and enrich relevant job opportunities without requiring manual keyword selection.
 
-### v2 Repository Structure
+## v2 Repository Structure
 ```
 recruiter-recon-ai/
 ├── resumes/
