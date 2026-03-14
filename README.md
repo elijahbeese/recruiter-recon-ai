@@ -71,14 +71,10 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
   
 * **Run the script**
   * `python scripts/v1.0.0.py`
-* **Example Output:**
-```
-Processing: Motorola Solutions | Security Operations Technician
-Processing: CACI | Junior Cyber Analyst
-Processing: Leidos | Cyber Security Analyst I
 
-Done. Output written to: output/enriched_jobs.csv
-```
+## Example Output
+
+![Sample Output](assets/sample-output.png)
   
 * **Review output**
   * **Open:**
