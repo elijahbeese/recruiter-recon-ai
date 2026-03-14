@@ -71,6 +71,14 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
   
 * **Run the script**
   * `python scripts/v1.0.0.py`
+  * **Example Output:**
+```
+Processing: Motorola Solutions | Security Operations Technician
+Processing: CACI | Junior Cyber Analyst
+Processing: Leidos | Cyber Security Analyst I
+```
+
+Done. Output written to: output/enriched_jobs.csv
   
 * **Review output**
   * **Open:**
@@ -85,12 +93,6 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * Pandas – structured data processing
 * dotenv – API configuration
 * tldextract – company domain parsing
-
-## Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
 
 ## Repository Structure
 
