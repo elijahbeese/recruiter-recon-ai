@@ -104,3 +104,29 @@ recruiter-recon-ai
 └── scripts/
     └── v1.0.0.py
 ```
+
+## Recruiter Recon AI – Version 1
+
+Version 1 demonstrates the **job enrichment pipeline**.
+
+The system analyzes cybersecurity job postings and determines how well they match the candidate’s background. It uses structured candidate data and AI-assisted analysis to evaluate job fit.
+
+### What V1 Does
+
+V1 performs the following workflow:
+
+1. Load the candidate profile from `candidate_profile.json`
+2. Load job listings from `input_jobs.csv`
+3. Attempt to fetch the job description from each job URL
+4. Use AI to analyze the job description and determine:
+   - Entry level fit
+   - Clearance relevance
+   - Required skills
+   - Preferred skills
+   - Overall job fit score
+5. Output the results to `output/enriched_jobs.csv`
+
+This version **does not search for jobs automatically**.  
+Jobs must be provided in `input_jobs.csv`.
+
+Automated job discovery will be implemented in **Version 2**.
