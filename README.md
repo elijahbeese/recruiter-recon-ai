@@ -94,15 +94,19 @@ pip install -r requirements.txt
 
 ```
 recruiter-recon-ai
-├── .gitignore
-├── .env.example
+│
+├── candidate_profile.json      # Candidate background used for job matching
+├── input_jobs.csv              # Job listings to analyze
+├── requirements.txt            # Python dependencies
 ├── README.md
-├── LICENSE
-├── requirements.txt
-├── assets/
-├── samples/
-└── scripts/
-    └── v1.0.0.py
+│
+├── scripts
+│   └── v1.0.0.py               # Main V1 pipeline
+│
+├── assets                      # Screenshots and diagrams
+│
+└── output
+    └── enriched_jobs.csv       # Final AI-enriched results
 ```
 
 ## Recruiter Recon AI – Version 1
