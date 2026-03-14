@@ -148,7 +148,7 @@ Automated job discovery will be implemented in **Version 2**.
 
 ## Recruiter Recon AI – Version 2
 
-Version 2 adds AI-driven job discovery by extracting a structured candidate profile directly from a resume and using that profile to identify and rank relevant opportunities.
+Version 2 will accept a resume as input, automatically extract a structured candidate profile using AI, and use that profile to discover, rank, and enrich relevant job opportunities without requiring manual keyword selection.
 
 ### v2 Repository Structure
 ```
