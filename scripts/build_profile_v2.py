@@ -120,7 +120,7 @@ Return:
 
 
 if __name__ == "__main__":
-    resume_path = "resumes/resume.docx"
+    resume_path = "resumes/resume.pdf"
     resume_text = parse_resume(resume_path)
     profile = build_candidate_profile(resume_text)
     print(json.dumps(profile, indent=2))
