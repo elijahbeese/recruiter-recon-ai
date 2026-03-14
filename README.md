@@ -66,7 +66,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * **Edit your candidate profile**
   * Update candidate_profile.json with your actual experience, skills, certifications, interests, and conservative clearance wording.
  
-## Example Candidate Profile
+* **Example Candidate Profile**
 
 <p align="center">
   <img src="assets/sample-profile.png" width="700">
@@ -78,7 +78,7 @@ Instead of manually reviewing hundreds of roles, this workflow identifies which 
 * **Run the script**
   * `python scripts/v1.0.0.py`
 
-## Example Output
+* **Example Output**
 
 <p align="center">
   <img src="assets/sample-output.png" width="700">
