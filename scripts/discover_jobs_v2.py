@@ -2,7 +2,7 @@ import csv
 import json
 from pathlib import Path
 from typing import Dict, List
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -15,7 +15,7 @@ USER_AGENT = (
 )
 
 
-def load_search_config(path: str = "search_config.json") -> Dict:
+def load_profile(path: str = "candidate_profile_generated.json") -> Dict:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -56,9 +56,17 @@ def search_duckduckgo(query: str, max_results: int = 10) -> List[Dict]:
     return results
 
 
-def derive_company_domain(url: str) -> str:
+def looks_like_job_posting(title: str, snippet: str) -> bool:
+    text = f"{title} {snippet}".lower()
+    markers = [
+        "job", "career", "apply", "analyst", "security", "cyber",
+        "engineer", "technician", "operations", "incident response"
+    ]
+    return any(m in text for m in markers)
+
+
+def company_domain_from_url(url: str) -> str:
     try:
-        from urllib.parse import urlparse
         hostname = urlparse(url).hostname or ""
         if hostname.startswith("www."):
             hostname = hostname[4:]
@@ -67,38 +75,25 @@ def derive_company_domain(url: str) -> str:
         return ""
 
 
-def infer_location(text: str, configured_locations: List[str]) -> str:
-    lower_text = text.lower()
-    for location in configured_locations:
-        if location.lower() in lower_text:
-            return location
-    return ""
-
-
-def looks_like_job_posting(title: str, snippet: str) -> bool:
-    text = f"{title} {snippet}".lower()
-    keywords = [
-        "job", "career", "apply", "analyst", "security", "cyber",
-        "technician", "engineer", "operations", "incident response"
-    ]
-    return any(k in text for k in keywords)
-
-
-def discover_jobs() -> Path:
-    config = load_search_config()
-    keywords = config["keywords"]
-    locations = config["locations"]
-    max_results = config.get("max_results_per_query", 20)
+def discover_jobs_from_profile(profile: Dict, output_path: str = "output/discovered_jobs.csv") -> Path:
+    queries = profile.get("search_queries", [])
+    locations = profile.get("location_preferences", [])
+    if not locations:
+        locations = ["United States", "Remote", "Florida", "Virginia"]
 
     discovered = []
     seen_urls = set()
 
-    for keyword in keywords:
-        for location in locations:
-            query = f'{keyword} "{location}" site:jobs.lever.co OR site:boards.greenhouse.io OR site:myworkdayjobs.com OR site:jobs.smartrecruiters.com'
+    for base_query in queries:
+        for location in locations[:4]:
+            query = (
+                f'{base_query} "{location}" '
+                f'(site:jobs.lever.co OR site:boards.greenhouse.io OR '
+                f'site:myworkdayjobs.com OR site:jobs.smartrecruiters.com)'
+            )
             print(f"Searching: {query}")
 
-            results = search_duckduckgo(query, max_results=max_results)
+            results = search_duckduckgo(query, max_results=10)
 
             for item in results:
                 url = item["url"]
@@ -112,22 +107,18 @@ def discover_jobs() -> Path:
 
                 discovered.append({
                     "company_name": "",
-                    "company_domain": derive_company_domain(url),
+                    "company_domain": company_domain_from_url(url),
                     "job_title": item["title"],
                     "job_url": url,
-                    "job_location": infer_location(
-                        f"{item['title']} {item['snippet']}",
-                        locations
-                    ),
+                    "job_location": location,
                     "recruiter_name": "",
                     "notes": item["snippet"]
                 })
 
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
 
-    output_path = output_dir / "discovered_jobs.csv"
-    with open(output_path, "w", newline="", encoding="utf-8") as f:
+    with open(out, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[
@@ -143,9 +134,11 @@ def discover_jobs() -> Path:
         writer.writeheader()
         writer.writerows(discovered)
 
-    print(f"Discovered jobs written to: {output_path}")
-    return output_path
+    return out
 
 
 if __name__ == "__main__":
-    discover_jobs()
+    profile = load_profile()
+    path = discover_jobs_from_profile(profile)
+    print(f"Discovered jobs written to: {path}")
+
