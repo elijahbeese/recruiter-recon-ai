@@ -142,7 +142,6 @@ Jobs must be provided in `input_jobs.csv`.
 
 Automated job discovery will be implemented in **Version 2**.
 
-**Workflow:**
 <p align="center">
   <img src="assets/workflow-diagram.png" width="700">
 </p>  
