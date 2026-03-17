@@ -49,10 +49,10 @@ def main() -> None:
     print(f"[run_v2] Resume found: {resume_path}")
 
     # ── Step 1: Build candidate profile ───────────────────────────────────────
-    run_step("Step 1 of 4 — Building candidate profile from resume", "scripts/build_profile_v2.py")
+    run_step("Step 1 of 4 — Building candidate profile from resume", "scripts/build_profile_v2.0.py")
 
     # ── Step 2: Discover jobs (v2.2) ──────────────────────────────────────────
-    run_step("Step 2 of 4 — Discovering jobs (v2.2)", "scripts/discover_jobs_v2_2.py")
+    run_step("Step 2 of 4 — Discovering jobs (v2.2)", "scripts/discover_jobs_v2.2.py")
 
     # ── Validate discovery output ──────────────────────────────────────────────
     discovered_path = Path("output/discovered_jobs.csv")
@@ -64,7 +64,7 @@ def main() -> None:
     print(f"\n[run_v2] Copying {discovered_path} → input_jobs.csv")
     shutil.copy(discovered_path, "input_jobs.csv")
 
-    run_step("Step 3 of 4 — Running V1 enrichment (AI + Hunter)", "scripts/recruiter_recon_v1.py")
+    run_step("Step 3 of 4 — Running V1 enrichment (AI + Hunter)", "scripts/recruiter_recon_v1.0.py")
 
     # ── Done ───────────────────────────────────────────────────────────────────
     print(f"\n{'═' * 60}")
