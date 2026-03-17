@@ -1,0 +1,46 @@
+{
+  "name": "Elijah Beese",
+  "education": [
+    "B.S. Cybersecurity, University of Tampa, May 2026"
+  ],
+  "experience": [
+    "Network Technologies Analyst, Tampa Electric Company",
+    "IT Intern, University of Tampa",
+    "Cybersecurity Intern, Air Force Institute of Technology",
+    "Army ROTC Cadet commissioning as a Cyber Officer (17A)"
+  ],
+  "skills": [
+    "Incident Response",
+    "SOC Operations",
+    "Log Analysis",
+    "Threat Detection",
+    "Burp Suite",
+    "Splunk",
+    "Network Monitoring",
+    "OSI Model",
+    "LAN/WAN Networking",
+    "Industrial Control Systems (ICS)",
+    "SCADA Security",
+    "Critical Infrastructure Security",
+    "Security Monitoring",
+    "Python",
+  ],
+  "certifications": [
+    "ISC2 CC",
+    "CompTIA Security+"
+  ],
+  "tools": [
+    "Splunk",
+    "Burp Suite",
+    "Nmap",
+    "Wireshark",
+    "AWS",
+    "Azure"
+  ],
+  "interests": [
+    "Cyber Operations",
+    "Critical Infrastructure",
+    "Network Security"
+  ],
+  "clearance_context": "Only reference clearance facts that are true and verified. Never overstate or invent eligibility details."
+}
