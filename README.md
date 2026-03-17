@@ -3,21 +3,20 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-2.3-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-2.4-blue?style=for-the-badge)
 
 > **AI-assisted job targeting pipeline for cybersecurity professionals.**
 > Resume in. Ranked opportunities out.
 
-Instead of manually scanning job boards one posting at a time, this pipeline takes your resume, builds a structured candidate profile, discovers relevant jobs across multiple sources, scores each one against your background using AI, and attempts to identify recruiter contacts — all without touching a browser.
+Instead of manually scanning job boards one posting at a time, this pipeline takes your resume, builds a structured candidate profile, discovers relevant jobs across multiple live sources, scores each one against your background using AI, identifies recruiter contacts, and outputs a clean report — ready for human review before any action is taken.
 
-This is a **review-first workflow**, not a blind outreach machine. Every output is designed for human review before any action is taken.
+This is a **review-first workflow**, not a blind outreach machine.
 
 ---
 
 ## 📋 Table of Contents
 
 - [How It Works](#how-it-works)
-- [Pipeline Overview](#pipeline-overview)
 - [Discovery Sources](#discovery-sources)
 - [Setup](#setup)
 - [Running the Pipeline](#running-the-pipeline)
@@ -25,13 +24,11 @@ This is a **review-first workflow**, not a blind outreach machine. Every output 
 - [Repository Structure](#repository-structure)
 - [Tech Stack](#tech-stack)
 - [Version History](#version-history)
-- [Roadmap](#roadmap)
+- [Roadmap — v3.0 UI](#roadmap--v30-ui)
 
 ---
 
 ## ⚙️ How It Works
-
-The pipeline runs in four sequential steps:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -43,36 +40,47 @@ The pipeline runs in four sequential steps:
 ┌─────────────────────────────────────────────────────────────┐
 │                  STEP 1 — PROFILE BUILD                     │
 │   AI parses resume → structured JSON candidate profile      │
-│   Target roles, skills, tools, certs, clearance, queries    │
+│   Target roles · Skills · Tools · Certs · Clearance         │
+│   Location preferences · Search query generation            │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                 STEP 2 — JOB DISCOVERY                      │
-│   9 sources queried simultaneously:                         │
-│   USAJobs · ClearanceJobs · Indeed · Dice                   │
-│   LinkedIn · Greenhouse · Lever · Workday · iCIMS           │
 │                                                             │
-│   Raw results → relevance filter → heuristic score         │
-│   → AI reranking → top 100 jobs selected                   │
+│   USAJobs API · ClearanceJobs · Indeed · Dice               │
+│   LinkedIn · Greenhouse (57 cos) · Lever (29 cos)           │
+│   Workday (15 cos) · iCIMS (8 cos)                          │
+│                                                             │
+│   → Relevance filter (removes non-cyber roles)              │
+│   → Heuristic scoring (source quality + skill overlap)      │
+│   → AI reranking (top 100 selected from raw pool)           │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                STEP 3 — AI ENRICHMENT                       │
-│   Each job page fetched and parsed                          │
-│   AI evaluates: entry-level fit, clearance fit,             │
-│   required skills, preferred skills, fit score (0-100),     │
-│   outreach angle, red flags                                 │
+│              STEP 3 — AI ENRICHMENT (v2.0)                  │
+│                                                             │
+│   Pre-filter: removes financial, physical security,         │
+│   admin, and senior roles before any API calls              │
+│                                                             │
+│   Batched AI scoring (15 jobs/call):                        │
+│   · Entry-level fit · Clearance fit · Fit score (0-100)     │
+│   · Required skills · Preferred skills                      │
+│   · Fit reasoning · Outreach angle · Red flags              │
+│                                                             │
+│   Recruiter enrichment (Hunter.io):                         │
+│   · Skips .gov/.mil domains (no useful contacts there)      │
+│   · Filters generic junk emails                             │
+│   · Returns named recruiter + email + confidence score      │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              STEP 4 — RECRUITER ENRICHMENT                  │
-│   Hunter.io queried per company domain                      │
-│   Recruiter / talent contacts identified                    │
-│   Email confidence scored                                   │
-│   Final enriched CSV exported for review                    │
+│                     OUTPUT                                  │
+│   enriched_jobs.csv  — full data export                     │
+│   enriched_jobs.html — dark-theme browser report            │
+│                        sortable · filterable · searchable   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -87,20 +95,23 @@ The pipeline runs in four sequential steps:
 | **Indeed** | RSS Feed | Broad market, small contractors | ❌ Blocked (403) |
 | **Dice** | RSS Feed | Tech/cyber contractor roles | ❌ Dead endpoint |
 | **LinkedIn** | HTML Scrape | General job market | ⚠️ Blocked (best-effort) |
-| **Greenhouse** | Direct JSON API | Cyber/defense company boards | ✅ Active |
-| **Lever** | Direct JSON API | Defense tech company boards | ✅ Active |
-| **Workday** | Direct API | Defense prime contractors | 🔧 In progress |
-| **iCIMS** | HTML Scrape | Traditional defense contractors | ✅ Partial |
+| **Greenhouse** | Direct JSON API | 57 cyber/defense company boards | ✅ Active |
+| **Lever** | Direct JSON API | 29 defense tech company boards | ✅ Active |
+| **Workday** | Direct API | 15 defense prime contractors | 🔧 Slug fixes in progress |
+| **iCIMS** | HTML Scrape | 8 traditional defense contractors | ✅ Partial |
 
-### v2.3 Discovery Results (sample run)
+### Sample discovery results (v2.3 run)
 
 ```
-usajobs        75 jobs    ████████████████████████████████
-greenhouse     84 jobs    ████████████████████████████████████
-lever         149 jobs    ████████████████████████████████████████████████████████
-icims           5 jobs    ██
+Lever          149 jobs   ████████████████████████████████████████████████████
+Greenhouse      84 jobs   ████████████████████████████████
+USAJobs         75 jobs   ████████████████████████████
+iCIMS            5 jobs   ██
 ─────────────────────────────────────────────────────────────
-total         300 raw → 98 final (after AI reranking)
+Total          300 raw → 98 selected after AI reranking
+
+Top results: NSA · CIA · DISA · Air Force · Booz Allen
+             Huntress · ThreatLocker · Palantir · Recorded Future
 ```
 
 ---
@@ -139,8 +150,6 @@ cp .env.example .env
 nano .env
 ```
 
-Fill in your API keys:
-
 ```env
 OPENAI_API_KEY=your_openai_key
 HUNTER_API_KEY=your_hunter_key
@@ -149,16 +158,14 @@ USAJOBS_USER_AGENT=your_email@example.com
 ```
 
 > **Getting API keys:**
-> - OpenAI: [platform.openai.com](https://platform.openai.com)
-> - Hunter.io: [hunter.io](https://hunter.io) — free tier available
-> - USAJobs: [developer.usajobs.gov](https://developer.usajobs.gov/APIRequest/) — free, instant
+> - **OpenAI:** [platform.openai.com](https://platform.openai.com)
+> - **Hunter.io:** [hunter.io](https://hunter.io) — free tier available
+> - **USAJobs:** [developer.usajobs.gov](https://developer.usajobs.gov/APIRequest/) — free, instant approval
 
 ### 5. Add your resume
 
-Drop your resume into the `resumes/` folder. Supported formats:
-
 ```
-resumes/resume.pdf
+resumes/resume.pdf     ← preferred
 resumes/resume.docx
 resumes/resume.txt
 ```
@@ -167,22 +174,18 @@ resumes/resume.txt
 
 ## ▶️ Running the Pipeline
 
-From the repo root with your virtual environment active:
-
 ```bash
-python scripts/run_v2_2.py
+python scripts/run_v2_3.py
 ```
 
-The pipeline prints progress for each step. Expected runtime:
+| Step | What Happens | Estimated Time |
+|---|---|---|
+| Profile Build | AI parses resume → JSON profile | 30–60 sec |
+| Job Discovery | 9 sources queried, 300 raw → 100 ranked | 3–8 min |
+| AI Enrichment | Batched scoring + Hunter contacts | 5–10 min |
+| **Total** | | **~10–20 min** |
 
-| Step | Estimated Time |
-|---|---|
-| Profile build | 30–60 seconds |
-| Job discovery (9 sources) | 3–8 minutes |
-| AI enrichment | 10–20 minutes |
-| **Total** | **~15–30 minutes** |
-
-> **Tip:** Run it in a dedicated terminal window. It prints progress continuously so you can monitor without interrupting it.
+Progress prints continuously. Do not interrupt mid-run.
 
 ---
 
@@ -190,30 +193,34 @@ The pipeline prints progress for each step. Expected runtime:
 
 | File | Description |
 |---|---|
-| `candidate_profile_generated.json` | AI-parsed candidate profile from your resume |
-| `output/raw_discovered_jobs.csv` | All discovered jobs before AI reranking (up to 300) |
-| `output/discovered_jobs.csv` | AI-reranked top jobs (up to 100) |
-| `output/enriched_jobs.csv` | Final output with AI scores + recruiter contacts |
+| `candidate_profile_generated.json` | AI-parsed candidate profile |
+| `output/raw_discovered_jobs.csv` | All discovered jobs pre-reranking |
+| `output/discovered_jobs.csv` | AI-reranked top 100 jobs |
+| `output/enriched_jobs.csv` | Full enriched dataset with scores + contacts |
+| `output/enriched_jobs.html` | **Open this in your browser** — interactive report |
+
+### HTML Report features
+- Dark theme, sortable columns, search bar
+- Filter by entry-level fit, clearance fit, minimum score
+- Color-coded scores (green 70+, amber 40–69, red below 40)
+- Recruiter email shown inline with mailto link
+- One-click through to job posting
 
 ### Enriched CSV columns
 
 | Column | Description |
 |---|---|
-| `company_name` | Employer name |
-| `job_title` | Position title |
-| `job_url` | Direct link to job posting |
-| `job_location` | Location or Remote |
 | `overall_fit_score` | AI fit score 0–100 |
 | `entry_level_fit` | yes / maybe / no / unclear |
 | `clearance_fit` | required / preferred / eligible / not_mentioned |
-| `required_skills` | Skills explicitly required by the posting |
+| `required_skills` | Skills the posting explicitly requires |
 | `preferred_skills` | Nice-to-have skills mentioned |
 | `fit_reasoning` | AI explanation of the score |
 | `outreach_angle` | Suggested angle for recruiter outreach |
-| `red_flags` | Potential concerns flagged by AI |
-| `recruiter_contact_name` | Identified recruiter or HR contact |
+| `red_flags` | Concerns flagged by AI |
+| `recruiter_contact_name` | Named recruiter or HR contact |
 | `recruiter_contact_email` | Contact email if found |
-| `recruiter_contact_confidence` | Hunter.io confidence score |
+| `recruiter_contact_confidence` | Hunter.io confidence score (0–100) |
 
 ---
 
@@ -223,23 +230,24 @@ The pipeline prints progress for each step. Expected runtime:
 recruiter-recon-ai/
 │
 ├── resumes/
-│   └── resume.pdf                      # Your resume goes here
+│   └── resume.pdf
 │
 ├── scripts/
-│   ├── build_profile_v2_0.py           # Resume → candidate profile (AI)
-│   ├── parse_resume_v2_0.py            # Resume text extraction
-│   ├── discover_jobs_v2_3.py           # Discovery engine (current — 9 sources)
-│   ├── recruiter_recon_v1_0.py         # AI scoring + Hunter enrichment
-│   └── run_v2_2.py                     # Pipeline orchestrator (current)
+│   ├── build_profile_v2_0.py       # Resume → candidate profile (AI)
+│   ├── parse_resume_v2_0.py        # Resume text extraction
+│   ├── discover_jobs_v2_3.py       # Discovery engine — 9 sources
+│   ├── recruiter_recon_v2_0.py     # Enrichment — batched AI + Hunter
+│   └── run_v2_3.py                 # Pipeline orchestrator (current)
 │
-├── output/                             # Generated — gitignored
+├── output/                         # Gitignored — generated per run
 │   ├── raw_discovered_jobs.csv
 │   ├── discovered_jobs.csv
-│   └── enriched_jobs.csv
+│   ├── enriched_jobs.csv
+│   └── enriched_jobs.html
 │
-├── assets/                             # Screenshots and diagrams
-├── .env                                # Your API keys — never committed
-├── .env.example                        # Template for .env
+├── assets/
+├── .env                            # API keys — never committed
+├── .env.example
 ├── requirements.txt
 └── README.md
 ```
@@ -267,56 +275,84 @@ recruiter-recon-ai/
 ## 📜 Version History
 
 ### `v1.0` — Job Enrichment Pipeline
-Manual workflow. Provide job URLs in `input_jobs.csv`. The system fetches each posting, runs AI analysis against your candidate profile, and outputs fit scores and recruiter contacts. No automated discovery — jobs must be provided manually.
+Manual workflow. Provide job URLs in `input_jobs.csv`. AI scores each posting against your candidate profile and outputs fit scores + recruiter contacts. No automated discovery.
 
 ---
 
 ### `v2.0` — Resume-Driven Discovery
-Introduced automated resume parsing and candidate profile generation via AI. Discovery engine used DuckDuckGo HTML scraping to find job postings across ATS platforms.
+Automated resume parsing and candidate profile generation via AI. Discovery engine used DuckDuckGo HTML scraping to find job postings across ATS platforms.
 
 ---
 
-### `v2.1` — Discovery Engine Improvements
-Improved heuristic scoring with profile alignment. Better ATS source classification. AI-assisted reranking of raw candidates. LinkedIn URL support. Profile-aligned query generation from resume.
+### `v2.1` — Discovery Improvements
+Improved heuristic scoring with profile alignment. Better ATS source classification. AI-assisted reranking. LinkedIn URL support. Profile-aligned query generation.
 
 ---
 
 ### `v2.2` — Rate Limiting & Query Budget
-Fixed silent discovery failures caused by DuckDuckGo rate limiting. Added randomized sleep between requests, exponential backoff retry logic, removal of wildcard `site:` queries, and a hard query budget cap. Pipeline ran reliably but remained dependent on a single brittle scraping target.
+Fixed silent discovery failures from DuckDuckGo rate limiting. Randomized sleep between requests, exponential backoff retry, wildcard query removal, hard query budget cap. Still dependent on a single brittle scraping target.
 
 ---
 
-### `v2.3` — Multi-Source Discovery Engine *(current)*
-Complete replacement of DuckDuckGo scraping with 9 dedicated sources. USAJobs, Greenhouse, and Lever are the primary active sources. LinkedIn, Indeed, and Dice are either blocked or deprecated — being replaced in v2.4.
+### `v2.3` — Multi-Source Discovery Engine
+Complete replacement of DuckDuckGo with 9 dedicated sources. USAJobs API, Greenhouse direct API, and Lever direct API became the primary active sources. LinkedIn/Indeed/Dice either blocked or deprecated.
 
-**Sample run results:** 300 raw jobs → 98 after AI reranking.
-Top sources: Lever (149), Greenhouse (84), USAJobs (75).
-
-Notable jobs discovered: NSA, CIA, DISA, Air Force, Booz Allen Hamilton,
-Huntress, ThreatLocker, Palantir, Recorded Future.
+Sample run: 300 raw → 98 enriched. Top results included NSA, CIA, DISA, Air Force, Booz Allen, Huntress, ThreatLocker, Palantir.
 
 ---
 
-## 🗺️ Roadmap
+### `v2.4` — Enrichment Performance & Accuracy *(current)*
 
-### `v2.4` — Performance & Source Fixes *(next)*
-- Batch AI scoring (groups of 15 instead of 1 per call — 10x faster enrichment)
-- Skip Hunter lookups for federal agency domains
-- Skip job page fetch when description already populated from ATS source
-- Per-job progress counter during enrichment
-- Fix Workday company slugs (returned 0 in v2.3)
-- Fix ClearanceJobs RSS endpoint
-- Replace Indeed and Dice with working alternatives
+**Speed:** Batched AI scoring (15 jobs/call) reduced enrichment from ~90 minutes to under 10 minutes.
 
-### `v3.0` — Autonomous Agent *(future)*
-- Scheduled runs via cron
-- Delta detection — new jobs since last run only
-- Email or Slack digest of top opportunities
-- Outreach draft generation per job
-- Application tracking integration
+**Accuracy:**
+- Pre-enrichment filter removes financial, physical security, admin, and senior roles before any API calls fire
+- Clearance context passed explicitly to AI — no more false "clearance not stated" flags for a candidate with an active Secret
+- Duplicate same-company/same-title entries collapsed before enrichment
+
+**Contacts:**
+- Hunter skips `.gov` and `.mil` domains entirely
+- Generic junk emails (`jobs@usajobs.gov`, `noreply@`) filtered out
+- Named recruiter contacts returned only when confidence meets threshold
+
+**Output:**
+- HTML report generated alongside CSV — dark theme, sortable, filterable, searchable
+- Color-coded fit scores for quick visual scanning
+
+---
+
+## 🗺️ Roadmap — v3.0 UI
+
+Version 3.0 will introduce a local Flask web dashboard that replaces manual CSV review with a full interactive interface.
+
+### Planned features
+
+**Job Search Dashboard**
+Browse all enriched results in a filterable, sortable table. Filter by fit score, entry-level status, clearance requirement, source, and location. Click any job to open the posting directly.
+
+**Manual Job Lookup**
+Paste one or more job URLs. The system fetches each posting, scores it against your profile using AI, and returns fit score, required skills, and recruiter contact — on demand, without running the full pipeline.
+
+**Recruiter Contact Finder**
+Enter a company name or domain. The system queries Hunter.io and returns all identified recruiting and HR contacts with names, emails, and confidence scores.
+
+**Pipeline Runner**
+Trigger a full pipeline run from the browser. Watch live progress output without touching the terminal.
+
+**Profile Viewer & Editor**
+View and edit your candidate profile directly in the UI — update target roles, skills, location preferences, and clearance info without editing JSON files.
+
+**Application Tracker**
+Mark jobs as `Applied`, `Interviewing`, `Offer`, or `Rejected`. Track your pipeline across multiple runs. State persists between sessions.
+
+**Outreach Draft Generator**
+Select any job from the results. AI generates a tailored cold outreach email to the identified recruiter contact, grounded in your profile and the specific job description.
+
+**Export**
+Export any filtered view to CSV or PDF for sharing or offline review.
 
 ---
 
 ## ⚠️ Disclaimer
 
-This tool is for personal job search use only. It does not automate job applications or recruiter outreach. All discovered data is exported for human review before any action is taken. Respect the terms of service of any platform queried.
+This tool is for personal job search use only. It does not automate job applications or recruiter outreach. All output is intended for human review before any action is taken. Respect the terms of service of any platform queried.
