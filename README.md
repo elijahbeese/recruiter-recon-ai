@@ -6,164 +6,183 @@
 
 AI-assisted job targeting pipeline for cybersecurity roles.
 
-This project helps automate the front end of a job search workflow by turning job postings into structured, reviewable data. Instead of manually scanning roles one at a time, the script pulls job information, analyzes required skills and qualifications, compares them against a candidate profile, assigns a fit score, and attempts to identify recruiter or recruiting contacts for manual verification.
+This project automates the front end of a job search by turning a resume into a ranked list of relevant opportunities with recruiter contact intelligence — without manually scanning job boards one posting at a time.
 
-This is designed as a review-first workflow, not a blind outreach machine.
+This is designed as a **review-first workflow**, not a blind outreach machine.
+
+---
+
+## How It Works
+
+```
+Resume (PDF/DOCX)
+       ↓
+AI Resume Parser
+       ↓
+Structured Candidate Profile (JSON)
+       ↓
+Job Discovery Engine
+       ↓
+Raw Job Dataset
+       ↓
+AI Fit Scoring & Reranking
+       ↓
+Recruiter Contact Enrichment (Hunter.io)
+       ↓
+Enriched CSV — ready for human review
+```
+
+---
 
 ## Features
 
-- Reads seed job targets from CSV or Google Sheets
-- Pulls public job description text from job URLs
-- Uses the OpenAI API to extract requirements and classify fit
-- Scores alignment based on entry-level suitability, clearance language, and skills match
-- Uses Hunter to find likely recruiter or recruiting contacts by company domain
-- Exports enriched results to CSV for human review
+- Parses a resume and builds a structured candidate profile using AI
+- Generates targeted search queries from the profile automatically
+- Discovers job postings across ATS platforms and job boards
+- Scores each job against the candidate profile using AI reasoning
+- Attempts to identify recruiter contact information via Hunter.io
+- Exports a ranked, enriched dataset for manual review
 
-## Workflow
-
-1. Job URLs are added to a seed spreadsheet or CSV.
-2. The script fetches the job page text.
-3. An LLM extracts skills, experience requirements, and role characteristics.
-4. The system compares the job against a structured candidate profile.
-5. A fit score is generated based on skill alignment and role criteria.
-6. The company domain is analyzed to identify likely recruiter or talent contacts.
-7. The results are exported to a structured spreadsheet for manual review.
-
-## Why this exists
-
-Hiring pipelines increasingly rely on automated systems to parse resumes and filter candidates before a recruiter ever reads them. This project takes the opposite-side view of that problem and applies automation to the job search itself.
-
-Instead of manually reviewing hundreds of roles, this workflow identifies which jobs are most worth pursuing and prepares structured outreach intelligence for review.
+---
 
 ## Setup
-* **Clone the repository**
-  * `git clone https://github.com/elijahbeese/recruiter-recon-ai.git`
-  * `cd recruiter-recon-ai`
-  
- * **Create and activate a virtual environment**
-   *  **macOS / Linux**
-      * `python3 -m venv .venv`
-      * `source .venv/bin/activate`
-   * **Windows PowerShell**
-     * `python -m venv .venv`
-     * `.venv\Scripts\Activate.ps1`
-  
-* **Install dependencies**
-  * `pip install -r requirements.txt`
-  
-* **Configure environment variables**  
-  * **macOS / Linux**
-    * `cp .env.example .env`
-  * **Windows PowerShell**
-    * `copy .env.example .env`
-    
-* **Then fill in your API keys.**
-  * `nano .env`
-    * `OPENAI_API_KEY=your_openai_key`
-    * `HUNTER_API_KEY=your_hunter_key`
-  
-* **Edit your candidate profile**
-  * Update candidate_profile.json with your actual experience, skills, certifications, interests, and conservative clearance wording.
- 
-* **Example Candidate Profile**
 
-<p align="center">
-  <img src="assets/sample-profile.png" width="700">
-</p>  
-  
-* **Add job targets**
-  * Populate input_jobs.csv with company names, domains, job titles, URLs, and locations.
-  
-* **Run the script**
-  * `python scripts/recruiter_recon_v1.py`
-
-* **Example Output**
-
-<p align="center">
-  <img src="assets/sample-output.png" width="700">
-</p>  
-
-* **Review output**
-  * **Open:**
-    * output/enriched_jobs.csv
-   
-## Tech Stack
-
-* Python
-* OpenAI API – job description analysis and skill extraction
-* Hunter API – recruiter and talent contact discovery
-* BeautifulSoup – job page parsing
-* Pandas – structured data processing
-* dotenv – API configuration
-* tldextract – company domain parsing
-
-## v1 Repository Structure
-
-```
-recruiter-recon-ai
-│
-├── candidate_profile.json      # Candidate background used for job matching
-├── input_jobs.csv              # Job listings to analyze
-├── requirements.txt            # Python dependencies
-├── README.md
-│
-├── scripts
-│   └── v1.0.0.py               # Main V1 pipeline
-│
-├── assets                      # Screenshots and diagrams
-│
-└── output
-    └── enriched_jobs.csv       # Final AI-enriched results
+**Clone the repository**
+```bash
+git clone https://github.com/elijahbeese/recruiter-recon-ai.git
+cd recruiter-recon-ai
 ```
 
-## Recruiter Recon AI – Version 1
+**Create and activate a virtual environment**
+```bash
+# macOS / Linux
+python3 -m venv .venv
+source .venv/bin/activate
 
-Version 1 demonstrates the **job enrichment pipeline**.
+# Windows PowerShell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
 
-The system analyzes cybersecurity job postings and determines how well they match the candidate’s background. It uses structured candidate data and AI-assisted analysis to evaluate job fit.
+**Install dependencies**
+```bash
+pip install -r requirements.txt
+```
 
-### What V1 Does
+**Configure environment variables**
+```bash
+cp .env.example .env
+nano .env
+```
+```
+OPENAI_API_KEY=your_openai_key
+HUNTER_API_KEY=your_hunter_key
+USAJOBS_API_KEY=your_usajobs_key   # v2.3+
+BING_API_KEY=your_bing_key         # v2.3+
+```
 
-V1 performs the following workflow:
+**Add your resume**
+```
+resumes/resume.pdf   (or .docx / .txt)
+```
 
-1. Load the candidate profile from `candidate_profile.json`
-2. Load job listings from `input_jobs.csv`
-3. Attempt to fetch the job description from each job URL
-4. Use AI to analyze the job description and determine:
-   - Entry level fit
-   - Clearance relevance
-   - Required skills
-   - Preferred skills
-   - Overall job fit score
-5. Output the results to `output/enriched_jobs.csv`
+**Run the pipeline**
+```bash
+python scripts/run_v2_1.py
+```
 
-This version **does not search for jobs automatically**.  
-Jobs must be provided in `input_jobs.csv`.
+**Review output**
+```
+output/discovered_jobs.csv     # All discovered and ranked jobs
+output/enriched_jobs.csv       # Jobs with AI scoring + recruiter contacts
+```
 
-Automated job discovery will be implemented in **Version 2**.
+---
 
-<p align="center">
-  <img src="assets/workflow-diagram.png" width="700">
-</p>  
+## Repository Structure
 
-## Recruiter Recon AI – Version 2
-
-Version 2 will accept a resume as input, automatically extract a structured candidate profile using AI, and use that profile to discover, rank, and enrich relevant job opportunities without requiring manual keyword selection.
-
-## v2 Repository Structure
 ```
 recruiter-recon-ai/
+│
 ├── resumes/
-│   └── resume.docx
-├── candidate_profile.json
+│   └── resume.pdf
+│
 ├── scripts/
-│   ├── parse_resume_v2.py
-│   ├── build_profile_v2.py
-│   ├── discover_jobs_v2.py
-│   ├── score_jobs_v2.py
-│   └── run_v2.py
-└── output/
-    ├── candidate_profile_generated.json
-    ├── discovered_jobs.csv
-    └── enriched_jobs.csv
+│   ├── build_profile_v2_0.py       # Resume → candidate profile (AI)
+│   ├── parse_resume_v2_0.py        # Resume text extraction
+│   ├── discover_jobs_v2_2.py       # Job discovery engine (current)
+│   ├── recruiter_recon_v1_0.py     # AI scoring + Hunter enrichment
+│   └── run_v2_1.py                 # Pipeline orchestrator
+│
+├── output/
+│   ├── raw_discovered_jobs.csv
+│   ├── discovered_jobs.csv
+│   └── enriched_jobs.csv
+│
+├── assets/
+├── .env.example
+├── requirements.txt
+└── README.md
 ```
+
+---
+
+## Tech Stack
+
+| Component | Purpose |
+|---|---|
+| Python | Core language |
+| OpenAI API | Resume parsing, job scoring, AI reranking |
+| Hunter.io API | Recruiter contact discovery |
+| BeautifulSoup | Job page parsing |
+| Pandas | Data processing |
+| Requests | HTTP requests |
+| python-dotenv | Environment config |
+| tldextract | Domain parsing |
+
+---
+
+## Version History
+
+### v1 — Job Enrichment Pipeline
+Manual workflow. Provide job URLs in `input_jobs.csv`, the system fetches each posting, runs AI analysis against your candidate profile, and outputs fit scores and recruiter contacts.
+
+Jobs must be provided manually. No automated discovery.
+
+---
+
+### v2.0 — Resume-Driven Discovery (Initial)
+Introduced automated resume parsing and candidate profile generation. Discovery engine used DuckDuckGo HTML scraping to find job postings across ATS platforms.
+
+---
+
+### v2.1 — Discovery Engine Improvements
+Improved heuristic scoring, better ATS source classification, AI-assisted reranking of raw candidates, LinkedIn URL support, profile-aligned query generation.
+
+---
+
+### v2.2 — Rate Limiting & Query Budget (Current)
+Fixed silent discovery failures caused by DuckDuckGo rate limiting. Added randomized sleep between requests, exponential backoff retry logic, wildcard `site:` query removal, and a hard query budget cap before the search loop runs.
+
+**Known limitation:** DuckDuckGo HTML scraping remains brittle and subject to network-level timeouts. v2.3 replaces it entirely.
+
+---
+
+### v2.3 — Direct Source Discovery (In Development)
+Replaces DuckDuckGo scraping with direct integrations:
+
+- **USAJobs API** — federal and DoD cybersecurity roles, free API, ideal for cleared candidates
+- **Bing Search API** — reliable programmatic search, 1000 free queries/month
+- **Greenhouse JSON API** — direct company job board access, no auth required
+- **Lever JSON API** — same approach as Greenhouse
+- **LinkedIn Jobs** — public job search endpoint
+
+This eliminates dependency on a single brittle scraping target and dramatically improves discovery reliability and volume.
+
+---
+
+## Why This Exists
+
+Hiring pipelines increasingly rely on automated systems to filter candidates before a recruiter reads a single resume. This project applies the same automation logic to the job search itself.
+
+Instead of manually reviewing hundreds of roles, the pipeline identifies which jobs are worth pursuing and prepares structured outreach intelligence — ready for human review before any action is taken.
