@@ -1,1 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SITREP — {% block title %}Job Intelligence{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="app-shell">
 
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">S</div>
+      <div>
+        <div class="logo-name">SITREP</div>
+        <div class="logo-sub">JOB INTELLIGENCE</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">MAIN</div>
+    <a href="/" class="sidebar-item {% if request.path == '/' %}active{% endif %}">
+      <span class="sidebar-icon">◈</span> Dashboard
+    </a>
+    <a href="/lookup" class="sidebar-item {% if request.path == '/lookup' %}active{% endif %}">
+      <span class="sidebar-icon">⌕</span> Job Lookup
+    </a>
+    <a href="/recruiter" class="sidebar-item {% if request.path == '/recruiter' %}active{% endif %}">
+      <span class="sidebar-icon">◎</span> Recruiter Finder
+    </a>
+
+    <div class="sidebar-section">TOOLS</div>
+    <a href="/pipeline" class="sidebar-item {% if request.path == '/pipeline' %}active{% endif %}">
+      <span class="sidebar-icon">▶</span> Run Pipeline
+    </a>
+    <a href="/tracker" class="sidebar-item {% if request.path == '/tracker' %}active{% endif %}">
+      <span class="sidebar-icon">◫</span> App Tracker
+    </a>
+    <a href="/outreach" class="sidebar-item {% if request.path == '/outreach' %}active{% endif %}">
+      <span class="sidebar-icon">✉</span> Outreach AI
+    </a>
+
+    <div class="sidebar-section">SETTINGS</div>
+    <a href="/profile" class="sidebar-item {% if request.path == '/profile' %}active{% endif %}">
+      <span class="sidebar-icon">◉</span> My Profile
+    </a>
+
+    <div class="sidebar-footer">
+      <div class="status-dot"></div>
+      <span>v3.0 · ONLINE</span>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <div class="topbar">
+      <div class="page-title">{% block page_title %}Dashboard{% endblock %}</div>
+      <div class="topbar-right">
+        <div class="topbar-pill">Last run: <span id="last-run">—</span></div>
+        <a href="/pipeline" class="run-btn">▶ Run Pipeline</a>
+      </div>
+    </div>
+    <div class="content-body">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+</div>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
