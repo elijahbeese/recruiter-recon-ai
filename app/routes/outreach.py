@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify
 import json
 import os
+import pandas as pd
 from pathlib import Path
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -21,9 +22,22 @@ def load_profile():
     return {}
 
 
+def load_jobs():
+    csv_path = Path("output/enriched_jobs.csv")
+    if not csv_path.exists():
+        return []
+    try:
+        df = pd.read_csv(csv_path).fillna("")
+        df = df.sort_values("overall_fit_score", ascending=False)
+        return df.to_dict(orient="records")
+    except Exception:
+        return []
+
+
 @outreach_bp.route("/outreach")
 def outreach():
-    return render_template("outreach.html")
+    jobs = load_jobs()
+    return render_template("outreach.html", jobs=jobs)
 
 
 @outreach_bp.route("/api/outreach/generate", methods=["POST"])
