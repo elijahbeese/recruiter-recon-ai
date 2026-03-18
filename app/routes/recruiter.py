@@ -35,7 +35,6 @@ def api_recruiter():
             params={
                 "domain": domain,
                 "api_key": hunter_key,
-                "limit": 20,
             },
             timeout=15,
         )
