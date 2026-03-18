@@ -1,1 +1,181 @@
+{% extends "base.html" %}
+{% block title %}My Profile{% endblock %}
+{% block page_title %}My Profile{% endblock %}
 
+{% block content %}
+<div style="max-width:900px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div>
+      <div style="font-size:22px;font-weight:700">{{ profile.get('name', 'Candidate') }}</div>
+      <div style="font-size:13px;color:var(--text-secondary)">{{ profile.get('experience_level', '') }}</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="saveProfile()" id="saveBtn">Save Changes</button>
+      <span id="saveStatus" style="font-size:12px;color:var(--green);display:none;align-self:center">Saved!</span>
+    </div>
+  </div>
+
+  <!-- CLEARANCE BANNER -->
+  <div style="background:var(--blue-bg);border:1px solid var(--blue);border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+    <div style="font-size:20px">🔐</div>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--blue)">Clearance Status</div>
+      <div style="font-size:12px;color:var(--text-secondary)">{{ profile.get('clearance_relevance', 'Not specified') }}</div>
+    </div>
+  </div>
+
+  <div class="profile-grid">
+
+    <!-- TARGET ROLES -->
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px">Target Roles</div>
+      <div class="tag-list" id="roles-list">
+        {% for role in profile.get('target_roles', []) %}
+        <span class="editable-tag">{{ role }}<span class="remove" onclick="removeTag(this,'roles-list')">×</span></span>
+        {% endfor %}
+      </div>
+      <input class="form-input" style="margin-top:10px" placeholder="Add role + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'roles-list');event.preventDefault()}">
+    </div>
+
+    <!-- SKILLS -->
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px">Skills</div>
+      <div class="tag-list" id="skills-list">
+        {% for skill in profile.get('skills', []) %}
+        <span class="editable-tag">{{ skill }}<span class="remove" onclick="removeTag(this,'skills-list')">×</span></span>
+        {% endfor %}
+      </div>
+      <input class="form-input" style="margin-top:10px" placeholder="Add skill + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'skills-list');event.preventDefault()}">
+    </div>
+
+    <!-- TOOLS -->
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px">Tools</div>
+      <div class="tag-list" id="tools-list">
+        {% for tool in profile.get('tools', []) %}
+        <span class="editable-tag">{{ tool }}<span class="remove" onclick="removeTag(this,'tools-list')">×</span></span>
+        {% endfor %}
+      </div>
+      <input class="form-input" style="margin-top:10px" placeholder="Add tool + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'tools-list');event.preventDefault()}">
+    </div>
+
+    <!-- CERTIFICATIONS -->
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px">Certifications</div>
+      <div class="tag-list" id="certs-list">
+        {% for cert in profile.get('certifications', []) %}
+        <span class="editable-tag" style="border-color:var(--accent)">{{ cert }}<span class="remove" onclick="removeTag(this,'certs-list')">×</span></span>
+        {% endfor %}
+      </div>
+      <input class="form-input" style="margin-top:10px" placeholder="Add cert + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'certs-list');event.preventDefault()}">
+    </div>
+
+    <!-- LOCATION PREFERENCES -->
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px">Location Preferences</div>
+      <div class="tag-list" id="locations-list">
+        {% for loc in profile.get('location_preferences', []) %}
+        <span class="editable-tag">{{ loc }}<span class="remove" onclick="removeTag(this,'locations-list')">×</span></span>
+        {% endfor %}
+      </div>
+      <input class="form-input" style="margin-top:10px" placeholder="Add location + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'locations-list');event.preventDefault()}">
+    </div>
+
+    <!-- INDUSTRIES -->
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px">Target Industries</div>
+      <div class="tag-list" id="industries-list">
+        {% for ind in profile.get('industries', []) %}
+        <span class="editable-tag">{{ ind }}<span class="remove" onclick="removeTag(this,'industries-list')">×</span></span>
+        {% endfor %}
+      </div>
+      <input class="form-input" style="margin-top:10px" placeholder="Add industry + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'industries-list');event.preventDefault()}">
+    </div>
+
+  </div>
+
+  <!-- RESUME SUMMARY -->
+  <div class="panel" style="margin-top:4px">
+    <div class="panel-title" style="margin-bottom:12px">Resume Summary</div>
+    <textarea class="form-textarea" id="resume-summary" rows="5">{{ profile.get('resume_summary', '') }}</textarea>
+  </div>
+
+  <!-- SEARCH QUERIES -->
+  <div class="panel">
+    <div class="panel-title" style="margin-bottom:12px">Search Queries</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">These queries drive job discovery. Edit to target specific roles or locations.</div>
+    <div class="tag-list" id="queries-list">
+      {% for q in profile.get('search_queries', []) %}
+      <span class="editable-tag" style="border-color:var(--accent);max-width:100%">{{ q }}<span class="remove" onclick="removeTag(this,'queries-list')">×</span></span>
+      {% endfor %}
+    </div>
+    <input class="form-input" style="margin-top:10px" placeholder="Add search query + Enter" onkeydown="if(event.key==='Enter'){addTag(this,'queries-list');event.preventDefault()}">
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getTags(listId) {
+  return Array.from(document.querySelectorAll(`#${listId} .editable-tag`))
+    .map(el => el.childNodes[0].textContent.trim())
+    .filter(Boolean);
+}
+
+function addTag(input, listId) {
+  const val = input.value.trim();
+  if (!val) return;
+  const list = document.getElementById(listId);
+  const span = document.createElement('span');
+  span.className = 'editable-tag';
+  span.innerHTML = `${val}<span class="remove" onclick="removeTag(this,'${listId}')">×</span>`;
+  list.appendChild(span);
+  input.value = '';
+}
+
+function removeTag(btn, listId) {
+  btn.parentElement.remove();
+}
+
+async function saveProfile() {
+  const btn = document.getElementById('saveBtn');
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  const profile = {
+    name: '{{ profile.get("name", "") }}',
+    experience_level: '{{ profile.get("experience_level", "") }}',
+    clearance_relevance: '{{ profile.get("clearance_relevance", "") }}',
+    target_roles: getTags('roles-list'),
+    skills: getTags('skills-list'),
+    tools: getTags('tools-list'),
+    certifications: getTags('certs-list'),
+    location_preferences: getTags('locations-list'),
+    industries: getTags('industries-list'),
+    search_queries: getTags('queries-list'),
+    resume_summary: document.getElementById('resume-summary').value,
+  };
+
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(profile),
+    });
+    const data = await res.json();
+    if (data.success) {
+      const status = document.getElementById('saveStatus');
+      status.style.display = 'inline';
+      setTimeout(() => { status.style.display = 'none'; }, 3000);
+    }
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+  } finally {
+    btn.innerHTML = 'Save Changes';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}
