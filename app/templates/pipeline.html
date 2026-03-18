@@ -1,1 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Run Pipeline{% endblock %}
+{% block page_title %}Run Pipeline{% endblock %}
 
+{% block content %}
+<div style="max-width:800px">
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-title" style="margin-bottom:8px">SITREP Intelligence Pipeline</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">
+      Runs the full pipeline: profile build → job discovery (9 sources) → AI enrichment → HTML report. Watch live progress below.
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+      <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--accent-light);font-family:var(--font-mono)" id="stat-sources">9</div>
+        <div style="font-size:11px;color:var(--text-muted)">Sources</div>
+      </div>
+      <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--amber);font-family:var(--font-mono)" id="stat-time">~15 min</div>
+        <div style="font-size:11px;color:var(--text-muted)">Est. Runtime</div>
+      </div>
+      <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--font-mono)" id="stat-status">READY</div>
+        <div style="font-size:11px;color:var(--text-muted)">Status</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="startPipeline()" id="runBtn" style="font-size:14px;padding:11px 24px">
+        ▶ Launch Pipeline
+      </button>
+      <button class="btn btn-secondary" onclick="clearLog()" id="clearBtn">Clear Log</button>
+    </div>
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div style="background:var(--bg-elevated);border-radius:4px;height:4px;margin-bottom:16px;overflow:hidden">
+    <div id="progressBar" style="height:4px;background:var(--accent);width:0%;transition:width .5s ease;border-radius:4px"></div>
+  </div>
+
+  <!-- TERMINAL LOG -->
+  <div class="panel" style="padding:0">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:12px;font-weight:600;font-family:var(--font-mono);color:var(--text-muted)">// MISSION LOG</div>
+      <div style="font-size:11px;color:var(--text-muted)" id="log-time"></div>
+    </div>
+    <div class="terminal" id="terminal">
+      <div class="log-line" style="color:var(--text-muted)">Awaiting launch order...</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let running = false;
+let progress = 0;
+const STEPS = ['Profile Build', 'USAJobs', 'ClearanceJobs', 'Indeed', 'Dice', 'LinkedIn', 'Greenhouse', 'Lever', 'Workday', 'iCIMS', 'AI Rerank', 'Enrichment', 'Complete'];
+
+function appendLog(message, type) {
+  const terminal = document.getElementById('terminal');
+  const line = document.createElement('div');
+  line.className = `log-line ${type || 'log'}`;
+  line.textContent = message;
+  terminal.appendChild(line);
+  terminal.scrollTop = terminal.scrollHeight;
+
+  // Update progress
+  for (let i = 0; i < STEPS.length; i++) {
+    if (message.includes(STEPS[i])) {
+      progress = Math.round((i / STEPS.length) * 100);
+      document.getElementById('progressBar').style.width = progress + '%';
+    }
+  }
+}
+
+function clearLog() {
+  document.getElementById('terminal').innerHTML = '<div class="log-line" style="color:var(--text-muted)">Log cleared.</div>';
+  document.getElementById('progressBar').style.width = '0%';
+  progress = 0;
+}
+
+async function startPipeline() {
+  if (running) return;
+  running = true;
+
+  const btn = document.getElementById('runBtn');
+  btn.innerHTML = '<span class="spinner"></span> Running...';
+  btn.disabled = true;
+  document.getElementById('stat-status').textContent = 'RUNNING';
+  document.getElementById('stat-status').style.color = 'var(--amber)';
+  document.getElementById('log-time').textContent = new Date().toLocaleTimeString();
+
+  clearLog();
+  appendLog('[ SITREP ] Pipeline launch initiated...', 'start');
+
+  const evtSource = new EventSource('/api/pipeline/run');
+
+  evtSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      appendLog(data.message, data.type);
+
+      if (data.type === 'complete') {
+        evtSource.close();
+        running = false;
+        btn.innerHTML = '▶ Launch Pipeline';
+        btn.disabled = false;
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('stat-status').textContent = 'DONE';
+        document.getElementById('stat-status').style.color = 'var(--green)';
+        appendLog('[ SITREP ] Navigate to Dashboard to view results.', 'success');
+      }
+
+      if (data.type === 'error') {
+        evtSource.close();
+        running = false;
+        btn.innerHTML = '▶ Launch Pipeline';
+        btn.disabled = false;
+        document.getElementById('stat-status').textContent = 'ERROR';
+        document.getElementById('stat-status').style.color = 'var(--red)';
+      }
+    } catch (err) {
+      appendLog(e.data, 'log');
+    }
+  };
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    running = false;
+    btn.innerHTML = '▶ Launch Pipeline';
+    btn.disabled = false;
+    appendLog('[ ERROR ] Connection lost. Check terminal for details.', 'error');
+    document.getElementById('stat-status').textContent = 'ERROR';
+    document.getElementById('stat-status').style.color = 'var(--red)';
+  };
+}
+</script>
+{% endblock %}
