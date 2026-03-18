@@ -1,1 +1,370 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Mission Dashboard{% endblock %}
 
+{% block content %}
+<!-- STAT CARDS -->
+<div class="stat-grid">
+  <div class="stat-card purple">
+    <div class="stat-label">Total Jobs</div>
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-sub">discovered this run</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">Strong Fits</div>
+    <div class="stat-value">{{ strong }}</div>
+    <div class="stat-sub">scored 70 or above</div>
+  </div>
+  <div class="stat-card amber">
+    <div class="stat-label">Entry Level</div>
+    <div class="stat-value">{{ entry }}</div>
+    <div class="stat-sub">confirmed entry-level</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-label">Contacts Found</div>
+    <div class="stat-value">{{ contacts }}</div>
+    <div class="stat-sub">recruiter emails identified</div>
+  </div>
+</div>
+
+<!-- CHARTS ROW -->
+<div class="charts-grid">
+
+  <!-- Score Distribution -->
+  <div class="chart-panel">
+    <div class="chart-title">Score Distribution</div>
+    <canvas id="scoreChart" height="160"></canvas>
+    <div style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px"><span style="color:var(--green)">Strong 70+</span><span>{{ score_dist.strong }}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px"><span style="color:var(--amber)">Good 40-69</span><span>{{ score_dist.good }}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)"><span style="color:var(--red)">Low &lt;40</span><span>{{ score_dist.low }}</span></div>
+    </div>
+  </div>
+
+  <!-- Source Breakdown -->
+  <div class="chart-panel">
+    <div class="chart-title">Discovery Sources</div>
+    <canvas id="sourceChart" height="160"></canvas>
+  </div>
+
+  <!-- Clearance Fit -->
+  <div class="chart-panel">
+    <div class="chart-title">Clearance Fit</div>
+    <canvas id="clearanceChart" height="160"></canvas>
+  </div>
+
+</div>
+
+<!-- JOB LIST -->
+<div class="panel">
+  <div class="panel-header">
+    <div class="panel-title">
+      Job Intelligence
+      <span class="panel-badge" id="result-count">{{ total }} results</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="exportCSV()">↓ Export</button>
+    </div>
+  </div>
+
+  <div class="filters-bar">
+    <input class="search-input" type="text" id="searchInput" placeholder="Search jobs, companies, locations, skills..." oninput="debouncedFilter()">
+    <select class="filter-select" id="scoreFilter" onchange="applyFilters()">
+      <option value="0">All Scores</option>
+      <option value="70">70+ Strong</option>
+      <option value="50">50+ Moderate</option>
+      <option value="40">40+ Good</option>
+    </select>
+    <select class="filter-select" id="entryFilter" onchange="applyFilters()">
+      <option value="">All Entry Level</option>
+      <option value="yes">Yes</option>
+      <option value="maybe">Maybe</option>
+      <option value="no">No</option>
+    </select>
+    <select class="filter-select" id="clearanceFilter" onchange="applyFilters()">
+      <option value="">All Clearance</option>
+      <option value="required">Required</option>
+      <option value="preferred">Preferred</option>
+      <option value="eligible">Eligible</option>
+      <option value="not_mentioned">Not Mentioned</option>
+    </select>
+    <select class="filter-select" id="sourceFilter" onchange="applyFilters()">
+      <option value="">All Sources</option>
+      {% for source in sources %}
+      <option value="{{ source }}">{{ source }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div id="jobList">
+    <div class="empty-state">
+      <div class="spinner"></div>
+      <div style="margin-top:12px;font-size:13px;color:var(--text-muted)">Loading jobs...</div>
+    </div>
+  </div>
+</div>
+
+<!-- JOB DETAIL MODAL -->
+<div class="modal-overlay" id="jobModal">
+  <div class="modal" id="jobModalContent">
+    <button class="modal-close" onclick="closeModal('jobModal')">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+let allJobs = [];
+
+const debouncedFilter = debounce(applyFilters, 300);
+
+// Chart defaults
+Chart.defaults.color = '#8892b0';
+Chart.defaults.borderColor = '#252840';
+Chart.defaults.font.family = "'Space Mono', monospace";
+Chart.defaults.font.size = 11;
+
+// Load jobs on page load
+async function loadJobs() {
+  const res = await fetch('/api/jobs');
+  allJobs = await res.json();
+  renderJobs(allJobs);
+  initCharts();
+}
+
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const minScore = parseInt(document.getElementById('scoreFilter').value) || 0;
+  const entry = document.getElementById('entryFilter').value;
+  const clearance = document.getElementById('clearanceFilter').value;
+  const source = document.getElementById('sourceFilter').value;
+
+  const filtered = allJobs.filter(j => {
+    if (parseInt(j.overall_fit_score) < minScore) return false;
+    if (entry && j.entry_level_fit !== entry) return false;
+    if (clearance && j.clearance_fit !== clearance) return false;
+    if (source && j.source !== source) return false;
+    if (search) {
+      const text = `${j.job_title} ${j.company_name} ${j.job_location} ${j.fit_reasoning} ${j.required_skills}`.toLowerCase();
+      if (!text.includes(search)) return false;
+    }
+    return true;
+  });
+
+  renderJobs(filtered);
+  document.getElementById('result-count').textContent = `${filtered.length} results`;
+}
+
+function renderJobs(jobs) {
+  const container = document.getElementById('jobList');
+
+  if (!jobs.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">◎</div>
+        <div class="empty-state-title">No jobs match your filters</div>
+        <div class="empty-state-sub">Try adjusting the search or filters above</div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = jobs.map((j, i) => {
+    const score = parseInt(j.overall_fit_score) || 0;
+    const cls = scoreClass(score);
+    const ef = j.entry_level_fit || 'unclear';
+    const cf = j.clearance_fit || 'unclear';
+    const hasContact = j.recruiter_contact_email && j.recruiter_contact_email.length > 3;
+
+    return `
+    <div class="job-card" onclick="showJobDetail(${i})" data-index="${i}">
+      <div class="score-ring ${cls}">${score}</div>
+      <div class="job-info">
+        <div class="job-title">${j.job_title || 'Unknown Role'}</div>
+        <div class="job-meta">
+          <span style="color:var(--text-secondary)">${j.company_name || '—'}</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span>${j.job_location || 'Location unknown'}</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px">${j.source || '—'}</span>
+        </div>
+      </div>
+      <div class="job-right">
+        <div style="display:flex;gap:5px">
+          <span class="tag ${ef}">${ef}</span>
+          <span class="tag ${cf}" style="font-size:10px">${cf.replace('_',' ')}</span>
+        </div>
+        ${hasContact
+          ? `<span class="contact-pill">◉ ${j.recruiter_contact_name || j.recruiter_contact_email}</span>`
+          : `<span style="font-size:11px;color:var(--text-muted)">No contact</span>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showJobDetail(index) {
+  const jobs = allJobs;
+  // find by rendered index
+  const visibleCards = document.querySelectorAll('[data-index]');
+  // use the data-index to get the right job from allJobs
+  const j = allJobs[index] || {};
+  const score = parseInt(j.overall_fit_score) || 0;
+
+  const redFlags = (j.red_flags || '').split(',').filter(Boolean);
+  const reqSkills = (j.required_skills || '').split(',').filter(Boolean);
+  const prefSkills = (j.preferred_skills || '').split(',').filter(Boolean);
+  const hasContact = j.recruiter_contact_email && j.recruiter_contact_email.length > 3;
+
+  document.getElementById('modalBody').innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <div class="score-ring ${scoreClass(score)}" style="width:56px;height:56px;font-size:18px">${score}</div>
+      <div>
+        <div class="modal-title">${j.job_title || '—'}</div>
+        <div class="modal-meta">${j.company_name || '—'} · ${j.job_location || 'Location unknown'} · <span style="font-family:var(--font-mono);font-size:11px">${j.source || '—'}</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">
+      <span class="tag ${j.entry_level_fit || 'unclear'}">Entry: ${j.entry_level_fit || 'unclear'}</span>
+      <span class="tag ${j.clearance_fit || 'unclear'}">${(j.clearance_fit || 'unclear').replace('_',' ')}</span>
+      ${j.us_based_company === 'yes' ? '<span class="tag yes">US Company</span>' : ''}
+      ${j.likely_job_family ? `<span style="background:var(--bg-elevated);color:var(--text-secondary);font-size:11px;padding:2px 9px;border-radius:20px">${j.likely_job_family}</span>` : ''}
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Fit Reasoning</div>
+      <div class="modal-section-body">${j.fit_reasoning || '—'}</div>
+    </div>
+
+    ${reqSkills.length ? `
+    <div class="modal-section">
+      <div class="modal-section-title">Required Skills</div>
+      <div class="skill-list">${reqSkills.map(s => `<span class="skill-tag">${s.trim()}</span>`).join('')}</div>
+    </div>` : ''}
+
+    ${prefSkills.length ? `
+    <div class="modal-section">
+      <div class="modal-section-title">Preferred Skills</div>
+      <div class="skill-list">${prefSkills.map(s => `<span class="skill-tag" style="border-color:var(--accent)">${s.trim()}</span>`).join('')}</div>
+    </div>` : ''}
+
+    ${j.outreach_angle ? `
+    <div class="modal-section">
+      <div class="modal-section-title">Outreach Angle</div>
+      <div class="modal-section-body" style="color:var(--accent-light)">${j.outreach_angle}</div>
+    </div>` : ''}
+
+    ${redFlags.length ? `
+    <div class="modal-section">
+      <div class="modal-section-title" style="color:var(--red)">Red Flags</div>
+      <ul style="padding-left:16px;color:var(--text-secondary);font-size:13px">
+        ${redFlags.map(f => `<li style="margin-bottom:4px">${f.trim()}</li>`).join('')}
+      </ul>
+    </div>` : ''}
+
+    ${hasContact ? `
+    <div class="modal-section" style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:14px">
+      <div class="modal-section-title">Recruiter Contact</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${j.recruiter_contact_name || '—'}</div>
+      <div style="font-size:13px;color:var(--accent-light);font-family:var(--font-mono)">${j.recruiter_contact_email}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Confidence: ${j.recruiter_contact_confidence || '—'} · ${j.recruiter_contact_source || '—'}</div>
+    </div>` : ''}
+
+    <div class="modal-actions">
+      <a href="${j.job_url || '#'}" target="_blank" class="btn btn-primary">Open Job Posting ↗</a>
+      ${hasContact ? `<button class="btn btn-secondary" onclick="copyText('${j.recruiter_contact_email}', this)">Copy Email</button>` : ''}
+      <button class="btn btn-secondary" onclick="goToOutreach(${JSON.stringify(j).replace(/"/g,'&quot;')})">Generate Outreach ✉</button>
+      <button class="btn btn-ghost" onclick="closeModal('jobModal')">Close</button>
+    </div>
+  `;
+
+  openModal('jobModal');
+}
+
+function goToOutreach(job) {
+  closeModal('jobModal');
+  sessionStorage.setItem('outreach_job', JSON.stringify(job));
+  window.location.href = '/outreach';
+}
+
+function exportCSV() {
+  window.location.href = '/api/jobs?export=1';
+}
+
+function initCharts() {
+  // Score distribution donut
+  new Chart(document.getElementById('scoreChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Strong 70+', 'Good 40-69', 'Low <40'],
+      datasets: [{
+        data: [{{ score_dist.strong }}, {{ score_dist.good }}, {{ score_dist.low }}],
+        backgroundColor: ['#34d399', '#fbbf24', '#f87171'],
+        borderWidth: 0,
+        hoverOffset: 4,
+      }]
+    },
+    options: {
+      cutout: '70%',
+      plugins: { legend: { display: false } },
+      animation: { animateRotate: true },
+    }
+  });
+
+  // Source breakdown bar
+  const sources = {{ sources | tojson }};
+  const sourceLabels = Object.keys(sources);
+  const sourceVals = Object.values(sources);
+  const sourceColors = ['#a78bfa','#34d399','#60a5fa','#fbbf24','#f87171','#f97316','#e879f9'];
+
+  new Chart(document.getElementById('sourceChart'), {
+    type: 'bar',
+    data: {
+      labels: sourceLabels,
+      datasets: [{
+        data: sourceVals,
+        backgroundColor: sourceColors.slice(0, sourceLabels.length),
+        borderRadius: 4,
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#1a1d2e' }, ticks: { color: '#8892b0' } },
+        y: { grid: { display: false }, ticks: { color: '#8892b0' } },
+      }
+    }
+  });
+
+  // Clearance fit donut
+  const clearance = {{ clearance_dist | tojson }};
+  const cLabels = Object.keys(clearance);
+  const cVals = Object.values(clearance);
+  const cColors = { required: '#60a5fa', preferred: '#a78bfa', eligible: '#34d399', not_mentioned: '#4a5580', unclear: '#374151' };
+
+  new Chart(document.getElementById('clearanceChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cLabels,
+      datasets: [{
+        data: cVals,
+        backgroundColor: cLabels.map(l => cColors[l] || '#4a5580'),
+        borderWidth: 0,
+        hoverOffset: 4,
+      }]
+    },
+    options: {
+      cutout: '65%',
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } } },
+    }
+  });
+}
+
+loadJobs();
+</script>
+{% endblock %}
