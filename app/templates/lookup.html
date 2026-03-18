@@ -1,1 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Job Lookup{% endblock %}
+{% block page_title %}Job Lookup{% endblock %}
 
+{% block content %}
+<div style="max-width:800px">
+  <div class="panel">
+    <div class="panel-title" style="margin-bottom:8px">Paste Job URLs</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+      Paste up to 5 job posting URLs. SITREP will fetch each posting, score it against your profile, and find recruiter contacts — on demand.
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Job URLs (one per line)</label>
+      <textarea class="form-textarea" id="urlInput" rows="5" placeholder="https://boards.greenhouse.io/company/jobs/12345&#10;https://jobs.lever.co/company/abc-123&#10;https://usajobs.gov/job/..."></textarea>
+    </div>
+
+    <button class="btn btn-primary" onclick="runLookup()" id="lookupBtn">
+      ⌕ Analyze Jobs
+    </button>
+  </div>
+
+  <div id="lookupResults"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function runLookup() {
+  const raw = document.getElementById('urlInput').value;
+  const urls = raw.split('\n').map(u => u.trim()).filter(Boolean);
+
+  if (!urls.length) return alert('Enter at least one URL.');
+
+  const btn = document.getElementById('lookupBtn');
+  btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+  btn.disabled = true;
+
+  document.getElementById('lookupResults').innerHTML = `
+    <div class="panel" style="text-align:center;padding:40px">
+      <div class="spinner" style="width:32px;height:32px;margin:0 auto 16px"></div>
+      <div style="color:var(--text-secondary)">Fetching job pages and running AI analysis...<br><small style="color:var(--text-muted)">This may take 30–60 seconds per URL</small></div>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/lookup', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ urls }),
+    });
+    const results = await res.json();
+
+    if (results.error) {
+      document.getElementById('lookupResults').innerHTML = `<div class="panel" style="color:var(--red)">${results.error}</div>`;
+      return;
+    }
+
+    document.getElementById('lookupResults').innerHTML = results.map(r => {
+      if (r.error) return `<div class="panel" style="color:var(--red)">Error: ${r.error}</div>`;
+      const score = parseInt(r.overall_fit_score) || 0;
+      const redFlags = (r.red_flags || []).join(', ');
+      const reqSkills = (r.required_skills || []).join(', ');
+      const hasContact = r.recruiter_email;
+
+      return `
+      <div class="panel" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+          <div class="score-ring ${scoreClass(score)}" style="width:56px;height:56px;font-size:18px">${score}</div>
+          <div>
+            <div style="font-size:16px;font-weight:700">${r.job_title || 'Unknown Role'}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${r.company_name || '—'} · ${r.job_location || '—'}</div>
+          </div>
+          <a href="${r.job_url}" target="_blank" class="btn btn-primary" style="margin-left:auto">Open ↗</a>
+        </div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+          <span class="tag ${r.entry_level_fit}">Entry: ${r.entry_level_fit}</span>
+          <span class="tag ${r.clearance_fit}">${(r.clearance_fit||'').replace('_',' ')}</span>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Fit Reasoning</div>
+          <div style="font-size:13px;color:var(--text-secondary)">${r.fit_reasoning || '—'}</div>
+        </div>
+
+        ${reqSkills ? `
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Required Skills</div>
+          <div class="skill-list">${reqSkills.split(',').map(s => `<span class="skill-tag">${s.trim()}</span>`).join('')}</div>
+        </div>` : ''}
+
+        ${r.outreach_angle ? `
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Outreach Angle</div>
+          <div style="font-size:13px;color:var(--accent-light)">${r.outreach_angle}</div>
+        </div>` : ''}
+
+        ${r.salary_estimate ? `
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Salary Estimate</div>
+          <div style="font-size:14px;color:var(--green);font-family:var(--font-mono);font-weight:700">${r.salary_estimate}</div>
+        </div>` : ''}
+
+        ${hasContact ? `
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:12px;margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;font-family:var(--font-mono)">Recruiter Contact</div>
+          <div style="font-weight:600">${r.recruiter_name || '—'}</div>
+          <div style="color:var(--accent-light);font-family:var(--font-mono);font-size:13px">${r.recruiter_email}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Confidence: ${r.recruiter_confidence || '—'}</div>
+        </div>` : ''}
+
+        ${redFlags ? `
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--red);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Red Flags</div>
+          <div style="font-size:12px;color:var(--text-secondary)">${redFlags}</div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+  } catch (err) {
+    document.getElementById('lookupResults').innerHTML = `<div class="panel" style="color:var(--red)">Request failed: ${err.message}</div>`;
+  } finally {
+    btn.innerHTML = '⌕ Analyze Jobs';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}
