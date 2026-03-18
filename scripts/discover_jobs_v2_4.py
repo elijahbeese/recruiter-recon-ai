@@ -49,7 +49,7 @@ USAJOBS_USER_AGENT = os.getenv("USAJOBS_USER_AGENT", "").strip()
 # ── Score threshold ────────────────────────────────────────────────────────────
 # Only jobs at or above this score proceed to AI enrichment.
 # Keeps enrichment focused on genuinely relevant roles.
-ENRICHMENT_SCORE_THRESHOLD = 70
+ENRICHMENT_SCORE_THRESHOLD = 50
 
 # ── Source priority ────────────────────────────────────────────────────────────
 SOURCE_PRIORITY = {
@@ -983,7 +983,7 @@ def ai_rerank_candidates(
         "and roles aligned with the candidate's actual skills. "
         "Penalize: roles requiring 5+ years, non-cyber roles, "
         "roles clearly unrelated to cybersecurity. "
-        "Score conservatively. Only score 70+ for genuine strong matches."
+        "Score conservatively. Only score 50+ for genuine matches."
     )
 
     prompt = f"""
@@ -1000,7 +1000,7 @@ CANDIDATE:
 JOBS ({len(prompt_candidates)} total):
 {json.dumps(prompt_candidates, indent=2)}
 
-Return top {keep_count} ranked by fit. Only include jobs with fit_score >= 70.
+Return top {keep_count} ranked by fit. Only include jobs with fit_score >= 50.
 """
 
     try:
@@ -1108,8 +1108,8 @@ def discover_jobs_from_profile(
     raw_path = write_csv(raw_output_path, all_results)
     print(f"\n[Discovery] Raw CSV: {raw_path}")
 
-    # ── AI rerank — only keep 70+ ──────────────────────────────────────────────
-    print(f"[Discovery] AI reranking → keeping only 70+ fit scores (max {target_final_jobs})...")
+    # ── AI rerank — only keep 50+ ──────────────────────────────────────────────
+    print(f"[Discovery] AI reranking → keeping only 50+ fit scores (max {target_final_jobs})...")
     reranked = ai_rerank_candidates(
         client=client,
         profile=profile,
@@ -1123,7 +1123,7 @@ def discover_jobs_from_profile(
         reranked = [r for r in all_results if r.get("discovery_score", 0) >= ENRICHMENT_SCORE_THRESHOLD][:target_final_jobs]
 
     final_path = write_csv(final_output_path, reranked)
-    print(f"[Discovery] Final CSV: {final_path} ({len(reranked)} jobs at 70+ threshold)")
+    print(f"[Discovery] Final CSV: {final_path} ({len(reranked)} jobs at 50+ threshold)")
     print("\n" + "═" * 60)
 
     return {"raw": raw_path, "final": final_path}
