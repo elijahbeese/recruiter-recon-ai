@@ -6,7 +6,7 @@ from typing import Any, Dict
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from parse_resume_v2 import parse_resume
+from parse_resume_v2_0 import parse_resume
 
 
 def build_candidate_profile(resume_text: str, output_path: str = "candidate_profile_generated.json") -> Dict[str, Any]:
