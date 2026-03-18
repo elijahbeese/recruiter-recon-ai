@@ -1,1 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Recruiter Finder{% endblock %}
+{% block page_title %}Recruiter Finder{% endblock %}
 
+{% block content %}
+<div style="max-width:800px">
+  <div class="panel">
+    <div class="panel-title" style="margin-bottom:8px">Find Recruiter Contacts</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+      Enter a company name or domain to surface all identified recruiting and HR contacts via Hunter.io.
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <input class="form-input" id="companyInput" placeholder="Company name (e.g. CrowdStrike)" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')searchRecruiter()">
+      <input class="form-input" id="domainInput" placeholder="Domain (e.g. crowdstrike.com)" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')searchRecruiter()">
+      <button class="btn btn-primary" onclick="searchRecruiter()" id="searchBtn">◎ Find Contacts</button>
+    </div>
+  </div>
+
+  <div id="recruiterResults"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function searchRecruiter() {
+  const company = document.getElementById('companyInput').value.trim();
+  const domain = document.getElementById('domainInput').value.trim();
+
+  if (!company && !domain) return alert('Enter a company name or domain.');
+
+  const btn = document.getElementById('searchBtn');
+  btn.innerHTML = '<span class="spinner"></span> Searching...';
+  btn.disabled = true;
+
+  document.getElementById('recruiterResults').innerHTML = `
+    <div class="panel" style="text-align:center;padding:40px">
+      <div class="spinner" style="width:32px;height:32px;margin:0 auto 16px"></div>
+      <div style="color:var(--text-secondary)">Querying Hunter.io...</div>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/recruiter', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ company, domain }),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      document.getElementById('recruiterResults').innerHTML = `<div class="panel" style="color:var(--red)">${data.error}</div>`;
+      return;
+    }
+
+    const contacts = data.contacts || [];
+    const recruiting = contacts.filter(c => c.is_recruiting);
+    const other = contacts.filter(c => !c.is_recruiting);
+
+    document.getElementById('recruiterResults').innerHTML = `
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div>
+            <div style="font-size:17px;font-weight:700">${data.company || data.domain}</div>
+            <div style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono)">${data.domain} · ${data.total_found} contacts found</div>
+            ${data.pattern ? `<div style="font-size:12px;color:var(--accent-light);margin-top:4px;font-family:var(--font-mono)">Email pattern: ${data.pattern}</div>` : ''}
+          </div>
+          <div class="stat-card purple" style="margin:0;padding:12px 20px;text-align:center">
+            <div class="stat-value" style="font-size:24px">${data.total_found}</div>
+            <div class="stat-label">Contacts</div>
+          </div>
+        </div>
+
+        ${recruiting.length ? `
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;color:var(--green);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;font-family:var(--font-mono)">◉ Recruiting / HR Contacts (${recruiting.length})</div>
+          ${recruiting.map(c => contactCard(c, true)).join('')}
+        </div>` : ''}
+
+        ${other.length ? `
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;font-family:var(--font-mono)">Other Contacts (${other.length})</div>
+          ${other.map(c => contactCard(c, false)).join('')}
+        </div>` : ''}
+
+        ${!contacts.length ? '<div class="empty-state"><div class="empty-state-title">No contacts found</div><div class="empty-state-sub">Try a different domain or company name</div></div>' : ''}
+      </div>`;
+
+  } catch (err) {
+    document.getElementById('recruiterResults').innerHTML = `<div class="panel" style="color:var(--red)">Request failed: ${err.message}</div>`;
+  } finally {
+    btn.innerHTML = '◎ Find Contacts';
+    btn.disabled = false;
+  }
+}
+
+function contactCard(c, highlight) {
+  const conf = parseInt(c.confidence) || 0;
+  const confColor = conf >= 80 ? 'var(--green)' : conf >= 50 ? 'var(--amber)' : 'var(--red)';
+  return `
+  <div style="background:var(--bg-elevated);border:1px solid ${highlight ? 'var(--green)' : 'var(--border)'};border-radius:var(--radius-md);padding:14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center">
+    <div>
+      <div style="font-weight:600;font-size:14px">${c.name || 'Unknown'}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${c.position || c.department || '—'}</div>
+      <div style="font-size:13px;color:var(--accent-light);font-family:var(--font-mono);margin-top:4px">${c.email}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:18px;font-weight:700;color:${confColor};font-family:var(--font-mono)">${conf}</div>
+      <div style="font-size:10px;color:var(--text-muted)">confidence</div>
+      <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;margin-top:6px" onclick="copyText('${c.email}', this)">Copy Email</button>
+    </div>
+  </div>`;
+}
+</script>
+{% endblock %}
