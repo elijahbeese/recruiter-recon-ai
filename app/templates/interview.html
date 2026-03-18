@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Interview Prep{% endblock %}
+{% block page_title %}Interview Prep{% endblock %}
+
+{% block content %}
+<div style="max-width:1000px">
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-title" style="margin-bottom:8px">Interview Preparation</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+      Select a job to generate tailored interview questions, suggested answers grounded in your actual experience, smart questions to ask the interviewer, and salary negotiation advice.
+    </div>
+    {% if jobs %}
+    <select class="form-select" id="jobSelector" style="width:100%;margin-bottom:12px">
+      <option value="">— Select a job to prep for —</option>
+      {% for job in jobs %}
+      <option value="{{ loop.index0 }}">[{{ job.overall_fit_score }}] {{ job.job_title }} — {{ job.company_name }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <button class="btn btn-primary" onclick="runPrep()" id="prepBtn" style="font-size:14px;padding:11px 24px">◑ Generate Interview Prep</button>
+  </div>
+
+  <div id="results"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const jobs = {{ jobs | tojson }};
+
+async function runPrep() {
+  const sel = document.getElementById('jobSelector');
+  if (!sel || !sel.value) return alert('Select a job first.');
+  const job = jobs[parseInt(sel.value)];
+
+  const btn = document.getElementById('prepBtn');
+  btn.innerHTML = '<span class="spinner"></span> Generating...';
+  btn.disabled = true;
+
+  document.getElementById('results').innerHTML = `
+    <div class="panel" style="text-align:center;padding:40px">
+      <div class="spinner" style="width:32px;height:32px;margin:0 auto 16px"></div>
+      <div style="color:var(--text-secondary)">Generating interview prep for ${job.job_title} at ${job.company_name}...</div>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/interview/prep', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job})
+    });
+    const d = await res.json();
+    if (d.error) {
+      document.getElementById('results').innerHTML = `<div class="panel" style="color:var(--red)">${d.error}</div>`;
+      return;
+    }
+
+    document.getElementById('results').innerHTML = `
+      <!-- Header -->
+      <div class="panel" style="margin-bottom:14px;border-left:3px solid var(--accent)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px">${job.job_title}</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${job.company_name} · ${job.job_location || 'Location TBD'}</div>
+      </div>
+
+      <!-- Technical Questions -->
+      <div class="panel" style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:600;color:var(--accent-light);letter-spacing:.5px;margin-bottom:16px;font-family:var(--font-mono)">// TECHNICAL QUESTIONS</div>
+        ${(d.technical_questions || []).map((q, i) => `
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;margin-bottom:12px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text-primary)">Q${i+1}. ${q.question}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;font-style:italic">${q.why_asked}</div>
+          <div style="font-size:11px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Your Experience</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">${q.your_experience}</div>
+          <div style="font-size:11px;color:var(--green);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">Suggested Answer</div>
+          <div style="font-size:13px;color:var(--text-secondary)">${q.suggested_answer}</div>
+        </div>`).join('')}
+      </div>
+
+      <!-- Behavioral Questions -->
+      <div class="panel" style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:600;color:var(--accent-light);letter-spacing:.5px;margin-bottom:16px;font-family:var(--font-mono)">// BEHAVIORAL QUESTIONS (STAR FORMAT)</div>
+        ${(d.behavioral_questions || []).map((q, i) => `
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;margin-bottom:12px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px">${q.question}</div>
+          <div style="font-size:12px;color:var(--accent-light);margin-bottom:10px;font-family:var(--font-mono)">${q.framework}</div>
+          <div style="font-size:13px;color:var(--text-secondary)">${q.suggested_answer}</div>
+        </div>`).join('')}
+      </div>
+
+      <!-- Two column: Questions to ask + Talking points -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div class="panel">
+          <div style="font-size:13px;font-weight:600;color:var(--accent-light);letter-spacing:.5px;margin-bottom:14px;font-family:var(--font-mono)">// QUESTIONS TO ASK</div>
+          <ul style="padding-left:18px;color:var(--text-secondary);font-size:13px">
+            ${(d.questions_to_ask || []).map(q=>`<li style="margin-bottom:10px">${q}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="panel">
+          <div style="font-size:13px;font-weight:600;color:var(--accent-light);letter-spacing:.5px;margin-bottom:14px;font-family:var(--font-mono)">// KEY TALKING POINTS</div>
+          <ul style="padding-left:18px;color:var(--text-secondary);font-size:13px">
+            ${(d.key_talking_points || []).map(p=>`<li style="margin-bottom:10px">${p}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+
+      <!-- Red flags to address -->
+      ${d.red_flags_to_address && d.red_flags_to_address.length ? `
+      <div class="panel" style="margin-bottom:14px;border-left:3px solid var(--amber)">
+        <div style="font-size:13px;font-weight:600;color:var(--amber);letter-spacing:.5px;margin-bottom:12px;font-family:var(--font-mono)">// RED FLAGS TO ADDRESS PROACTIVELY</div>
+        <ul style="padding-left:18px;color:var(--text-secondary);font-size:13px">
+          ${d.red_flags_to_address.map(r=>`<li style="margin-bottom:8px">${r}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      <!-- Salary negotiation -->
+      ${d.salary_negotiation ? `
+      <div class="panel" style="border-left:3px solid var(--green)">
+        <div style="font-size:13px;font-weight:600;color:var(--green);letter-spacing:.5px;margin-bottom:12px;font-family:var(--font-mono)">// SALARY NEGOTIATION</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${d.salary_negotiation}</div>
+      </div>` : ''}
+
+      <!-- Print button -->
+      <div style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="window.print()">Print / Save as PDF</button>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('results').innerHTML = `<div class="panel" style="color:var(--red)">Failed: ${e.message}</div>`;
+  } finally {
+    btn.innerHTML = '◑ Generate Interview Prep';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

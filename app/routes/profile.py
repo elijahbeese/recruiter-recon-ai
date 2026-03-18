@@ -1,9 +1,10 @@
 from flask import Blueprint, render_template, request, jsonify
 import json
 from pathlib import Path
+from app.auth import login_required
 
 profile_bp = Blueprint("profile", __name__)
-PROFILE_PATH = Path("candidate_profile_generated.json")
+PROFILE_PATH  = Path("candidate_profile_generated.json")
 FALLBACK_PATH = Path("candidate_profile.json")
 
 
@@ -20,20 +21,22 @@ def save_profile(data: dict):
 
 
 @profile_bp.route("/profile")
+@login_required
 def profile():
-    data = load_profile()
-    return render_template("profile.html", profile=data)
+    return render_template("profile.html", profile=load_profile())
 
 
 @profile_bp.route("/api/profile", methods=["GET"])
+@login_required
 def get_profile():
     return jsonify(load_profile())
 
 
 @profile_bp.route("/api/profile", methods=["POST"])
+@login_required
 def update_profile():
     data = request.get_json()
     if not data:
-        return jsonify({"error": "No data provided"}), 400
+        return jsonify({"error": "No data"}), 400
     save_profile(data)
     return jsonify({"success": True})

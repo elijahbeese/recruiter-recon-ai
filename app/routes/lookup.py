@@ -6,6 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
 from dotenv import load_dotenv
+from app.auth import login_required
+from app.data import load_lookup_history, save_lookup_entry
 
 load_dotenv()
 lookup_bp = Blueprint("lookup", __name__)
@@ -16,6 +18,7 @@ def get_client():
 
 
 def fetch_page_text(url: str) -> str:
+    import re
     try:
         resp = requests.get(url, timeout=15, headers={
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
@@ -24,7 +27,6 @@ def fetch_page_text(url: str) -> str:
         soup = BeautifulSoup(resp.text, "html.parser")
         for tag in soup(["script", "style", "noscript", "nav", "footer"]):
             tag.decompose()
-        import re
         text = re.sub(r"\s+", " ", soup.get_text(separator=" ", strip=True))
         return text[:12000]
     except Exception as e:
@@ -40,7 +42,7 @@ def load_profile():
 
 
 def analyze_job(url: str, job_text: str, profile: dict) -> dict:
-    client = get_client()
+    client    = get_client()
     clearance = "Active Secret clearance. TS adjudication in progress. Security+ meets DoD 8570 IAT II."
 
     schema = {
@@ -50,8 +52,8 @@ def analyze_job(url: str, job_text: str, profile: dict) -> dict:
             "job_title":         {"type": "string"},
             "company_name":      {"type": "string"},
             "job_location":      {"type": "string"},
-            "entry_level_fit":   {"type": "string", "enum": ["yes", "maybe", "no", "unclear"]},
-            "clearance_fit":     {"type": "string", "enum": ["required", "preferred", "eligible", "not_mentioned", "unclear"]},
+            "entry_level_fit":   {"type": "string", "enum": ["yes","maybe","no","unclear"]},
+            "clearance_fit":     {"type": "string", "enum": ["required","preferred","eligible","not_mentioned","unclear"]},
             "overall_fit_score": {"type": "integer", "minimum": 0, "maximum": 100},
             "required_skills":   {"type": "array", "items": {"type": "string"}},
             "preferred_skills":  {"type": "array", "items": {"type": "string"}},
@@ -62,10 +64,10 @@ def analyze_job(url: str, job_text: str, profile: dict) -> dict:
             "company_domain":    {"type": "string"},
         },
         "required": [
-            "job_title", "company_name", "job_location", "entry_level_fit",
-            "clearance_fit", "overall_fit_score", "required_skills",
-            "preferred_skills", "fit_reasoning", "outreach_angle",
-            "red_flags", "salary_estimate", "company_domain"
+            "job_title","company_name","job_location","entry_level_fit",
+            "clearance_fit","overall_fit_score","required_skills",
+            "preferred_skills","fit_reasoning","outreach_angle",
+            "red_flags","salary_estimate","company_domain"
         ]
     }
 
@@ -73,12 +75,12 @@ def analyze_job(url: str, job_text: str, profile: dict) -> dict:
         "You are SITREP, an elite job intelligence analyst. "
         f"CANDIDATE CLEARANCE: {clearance} "
         "Analyze this job posting against the candidate profile with brutal honesty. "
-        "Extract all relevant intelligence. Estimate salary range if not listed based on role/location/company. "
-        "The outreach_angle should be a specific, compelling 2-sentence opener for a cold email to the recruiter."
+        "Estimate salary range if not listed. "
+        "outreach_angle: specific 2-sentence opener for cold email."
     )
 
     prompt = f"""
-CANDIDATE PROFILE:
+CANDIDATE:
 {json.dumps({
     'name': profile.get('name'),
     'experience_level': profile.get('experience_level'),
@@ -91,11 +93,8 @@ CANDIDATE PROFILE:
 }, indent=2)}
 
 JOB URL: {url}
-
 JOB PAGE TEXT:
 {job_text}
-
-Analyze this job and return structured intelligence.
 """
 
     try:
@@ -111,14 +110,17 @@ Analyze this job and return structured intelligence.
 
 
 @lookup_bp.route("/lookup")
+@login_required
 def lookup():
-    return render_template("lookup.html")
+    history = load_lookup_history()
+    return render_template("lookup.html", history=history)
 
 
 @lookup_bp.route("/api/lookup", methods=["POST"])
+@login_required
 def api_lookup():
-    data = request.get_json()
-    urls = data.get("urls", [])
+    data   = request.get_json()
+    urls   = data.get("urls", [])
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
 
@@ -133,7 +135,6 @@ def api_lookup():
         analysis = analyze_job(url, job_text, profile)
         analysis["job_url"] = url
 
-        # Hunter lookup for recruiter
         domain = analysis.get("company_domain", "")
         if domain and not domain.endswith(".gov") and not domain.endswith(".mil"):
             hunter_key = os.getenv("HUNTER_API_KEY", "")
@@ -147,12 +148,13 @@ def api_lookup():
                     hunter_data = r.json().get("data", {}).get("emails", [])
                     if hunter_data:
                         best = max(hunter_data, key=lambda x: int(x.get("confidence", 0)))
-                        analysis["recruiter_name"] = f"{best.get('first_name','')} {best.get('last_name','')}".strip()
-                        analysis["recruiter_email"] = best.get("value", "")
+                        analysis["recruiter_name"]       = f"{best.get('first_name','')} {best.get('last_name','')}".strip()
+                        analysis["recruiter_email"]      = best.get("value", "")
                         analysis["recruiter_confidence"] = best.get("confidence", 0)
                 except Exception:
                     pass
 
+        save_lookup_entry(url, analysis)
         results.append(analysis)
 
     return jsonify(results)

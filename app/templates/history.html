@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block page_title %}History{% endblock %}
+
+{% block content %}
+<div style="display:flex;gap:12px;margin-bottom:16px">
+  <button class="btn {% if not request.args.get('tab') or request.args.get('tab') == 'outreach' %}btn-primary{% else %}btn-secondary{% endif %}"
+    onclick="showTab('outreach')">Outreach History ({{ outreach|length }})</button>
+  <button class="btn {% if request.args.get('tab') == 'lookup' %}btn-primary{% else %}btn-secondary{% endif %}"
+    onclick="showTab('lookup')">Job Lookups ({{ lookups|length }})</button>
+</div>
+
+<!-- OUTREACH HISTORY -->
+<div id="tab-outreach">
+  {% if outreach %}
+  {% for entry in outreach %}
+  <div class="panel" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:15px;font-weight:700">{{ entry.job_title }} — {{ entry.company_name }}</div>
+        <div style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono)">
+          {{ entry.created_at[:10] }} · {{ entry.tone }} · Score: {{ entry.fit_score }}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        {% if entry.status == 'drafted' %}
+        <button class="btn btn-secondary" style="font-size:11px;padding:5px 12px"
+          onclick="markSent('{{ entry.id }}', this)">Mark Sent</button>
+        {% else %}
+        <span class="tag yes" style="font-size:11px">Sent {{ entry.sent_at[:10] if entry.sent_at else '' }}</span>
+        {% endif %}
+        {% if not entry.response_received %}
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px"
+          onclick="markResponse('{{ entry.id }}', this)">Got Response</button>
+        {% else %}
+        <span class="tag yes" style="font-size:11px">Response ✓</span>
+        {% endif %}
+        {% if entry.job_url %}
+        <a href="{{ entry.job_url }}" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 12px">View Job ↗</a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if entry.recruiter_name or entry.recruiter_email %}
+    <div style="font-size:12px;color:var(--accent-light);font-family:var(--font-mono);margin-bottom:10px">
+      To: {{ entry.recruiter_name }} {% if entry.recruiter_email %}&lt;{{ entry.recruiter_email }}&gt;{% endif %}
+    </div>
+    {% endif %}
+
+    <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;font-family:var(--font-mono)">SUBJECT</div>
+      <div style="font-size:13px;font-weight:600;color:var(--accent-light)">{{ entry.subject_line }}</div>
+    </div>
+
+    <div style="background:#080c10;border-radius:var(--radius-sm);padding:12px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);white-space:pre-wrap;max-height:200px;overflow-y:auto">{{ entry.email_body }}</div>
+
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-secondary" style="font-size:11px;padding:5px 12px"
+        onclick="copyText('Subject: {{ entry.subject_line }}\n\n{{ entry.email_body }}', this)">Copy Email</button>
+      {% if entry.recruiter_email %}
+      <a href="mailto:{{ entry.recruiter_email }}?subject={{ entry.subject_line | urlencode }}&body={{ entry.email_body | urlencode }}"
+        class="btn btn-ghost" style="font-size:11px;padding:5px 12px">Open in Mail</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">✉</div>
+    <div class="empty-state-title">No outreach emails yet</div>
+    <div class="empty-state-sub">Generate emails from the Outreach AI page — they'll appear here</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- LOOKUP HISTORY -->
+<div id="tab-lookup" style="display:none">
+  {% if lookups %}
+  {% for entry in lookups %}
+  <div class="panel" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <div class="score-ring {{ 'high' if entry.overall_fit_score|int >= 70 else ('mid' if entry.overall_fit_score|int >= 40 else 'low') }}"
+        style="width:44px;height:44px;font-size:14px">{{ entry.overall_fit_score }}</div>
+      <div>
+        <div style="font-size:15px;font-weight:700">{{ entry.job_title or 'Unknown Role' }}</div>
+        <div style="font-size:12px;color:var(--text-secondary)">{{ entry.company_name }} · {{ entry.job_location }}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">{{ entry.looked_up_at[:10] }}</div>
+      </div>
+      <a href="{{ entry.job_url }}" target="_blank" class="btn btn-secondary" style="margin-left:auto;font-size:11px;padding:5px 12px">Open ↗</a>
+    </div>
+    <div style="font-size:13px;color:var(--text-secondary)">{{ entry.fit_reasoning[:300] if entry.fit_reasoning else '—' }}</div>
+    {% if entry.salary_estimate %}
+    <div style="margin-top:8px;font-size:13px;color:var(--green);font-family:var(--font-mono);font-weight:700">{{ entry.salary_estimate }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">⌕</div>
+    <div class="empty-state-title">No lookups yet</div>
+    <div class="empty-state-sub">Paste job URLs in Job Lookup — results saved here automatically</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(tab) {
+  document.getElementById('tab-outreach').style.display = tab === 'outreach' ? 'block' : 'none';
+  document.getElementById('tab-lookup').style.display   = tab === 'lookup'   ? 'block' : 'none';
+}
+
+async function markSent(id, btn) {
+  await fetch('/api/history/outreach/mark-sent', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id})
+  });
+  btn.textContent = 'Sent ✓';
+  btn.className = 'btn btn-success';
+  btn.disabled = true;
+}
+
+async function markResponse(id, btn) {
+  await fetch('/api/history/outreach/mark-response', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id})
+  });
+  btn.textContent = 'Response ✓';
+  btn.className = 'btn btn-success';
+  btn.disabled = true;
+}
+</script>
+{% endblock %}

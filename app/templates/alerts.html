@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+{% block page_title %}Alerts{% endblock %}
+
+{% block content %}
+{% if alerts %}
+{% for alert in alerts %}
+<div class="panel" style="margin-bottom:10px;border-left:3px solid {% if alert.type == 'success' %}var(--green){% elif alert.type == 'error' %}var(--red){% else %}var(--accent){% endif %}">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:14px;font-weight:600">{{ alert.message }}</div>
+      <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-top:4px">{{ alert.created_at[:16].replace('T',' ') }}</div>
+    </div>
+    {% if alert.job_url %}
+    <a href="{{ alert.job_url }}" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 12px">View ↗</a>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-icon">◉</div>
+  <div class="empty-state-title">No alerts yet</div>
+  <div class="empty-state-sub">Alerts appear here when the pipeline finds new jobs or important events occur</div>
+</div>
+{% endif %}
+{% endblock %}

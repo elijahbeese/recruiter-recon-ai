@@ -43,15 +43,33 @@
     <a href="/outreach" class="sidebar-item {% if request.path == '/outreach' %}active{% endif %}">
       <span class="sidebar-icon">✉</span> Outreach AI
     </a>
+    <a href="/gap" class="sidebar-item {% if request.path == '/gap' %}active{% endif %}">
+      <span class="sidebar-icon">◐</span> Gap Analyzer
+    </a>
+    <a href="/interview" class="sidebar-item {% if request.path == '/interview' %}active{% endif %}">
+      <span class="sidebar-icon">◑</span> Interview Prep
+    </a>
+
+    <div class="sidebar-section">HISTORY</div>
+    <a href="/history" class="sidebar-item {% if request.path == '/history' %}active{% endif %}">
+      <span class="sidebar-icon">◷</span> History
+    </a>
+    <a href="/alerts" class="sidebar-item {% if request.path == '/alerts' %}active{% endif %}">
+      <span class="sidebar-icon">◉</span> Alerts
+      <span id="alert-badge" style="display:none;background:#f87171;color:white;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:auto;font-family:var(--font-mono)"></span>
+    </a>
 
     <div class="sidebar-section">SETTINGS</div>
     <a href="/profile" class="sidebar-item {% if request.path == '/profile' %}active{% endif %}">
       <span class="sidebar-icon">◉</span> My Profile
     </a>
+    <a href="/logout" class="sidebar-item" style="color:var(--red)">
+      <span class="sidebar-icon">→</span> Logout
+    </a>
 
     <div class="sidebar-footer">
       <div class="status-dot"></div>
-      <span>v3.0 · ONLINE</span>
+      <span>v3.1 · ONLINE</span>
     </div>
   </aside>
 
@@ -71,6 +89,24 @@
 
 </div>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+// Poll for unread alerts
+async function checkAlerts() {
+  try {
+    const r = await fetch('/api/alerts/unread');
+    const d = await r.json();
+    const badge = document.getElementById('alert-badge');
+    if (d.count > 0) {
+      badge.textContent = d.count;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+checkAlerts();
+setInterval(checkAlerts, 30000);
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
