@@ -1,1 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Outreach AI{% endblock %}
+{% block page_title %}Outreach AI{% endblock %}
 
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px">
+
+  <!-- LEFT: INPUT -->
+  <div>
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:16px">Generate Outreach Email</div>
+
+      <div class="form-group">
+        <label class="form-label">Job Title</label>
+        <input class="form-input" id="o-title" placeholder="SOC Analyst Tier 1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Company</label>
+        <input class="form-input" id="o-company" placeholder="Huntress">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Job Location</label>
+        <input class="form-input" id="o-location" placeholder="Remote US">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fit Score (0-100)</label>
+        <input class="form-input" id="o-score" type="number" placeholder="90" min="0" max="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Key Things That Make You a Fit</label>
+        <textarea class="form-textarea" id="o-reasoning" rows="3" placeholder="SOC monitoring experience, active Secret clearance, Splunk proficiency..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Outreach Angle (optional)</label>
+        <textarea class="form-textarea" id="o-angle" rows="2" placeholder="Candidate's 24x7 TOC experience directly maps to the monitoring requirements..."></textarea>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+        <div class="form-group">
+          <label class="form-label">Recruiter Name (optional)</label>
+          <input class="form-input" id="o-recruiter-name" placeholder="Courtney Clickner">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Recruiter Email (optional)</label>
+          <input class="form-input" id="o-recruiter-email" placeholder="courtney.clickner@huntress.com">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Tone</label>
+        <select class="form-select" id="o-tone">
+          <option value="professional">Professional</option>
+          <option value="personable">Personable</option>
+          <option value="aggressive">Bold & Direct</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="generateOutreach()" id="genBtn" style="width:100%;justify-content:center;padding:12px">
+        ✉ Generate Outreach Email
+      </button>
+    </div>
+  </div>
+
+  <!-- RIGHT: OUTPUT -->
+  <div>
+    <div class="panel" id="outputPanel" style="display:none">
+      <div class="panel-title" style="margin-bottom:16px">Generated Email</div>
+
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Subject Line</div>
+        <div id="o-subject" style="font-weight:600;font-size:14px;color:var(--accent-light);background:var(--bg-elevated);padding:10px 14px;border-radius:var(--radius-sm);font-family:var(--font-mono)"></div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Email Body</div>
+        <div class="email-preview" id="o-body"></div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Follow-up Line</div>
+        <div style="font-size:13px;color:var(--text-secondary);font-style:italic;padding:10px 14px;background:var(--bg-elevated);border-radius:var(--radius-sm)" id="o-followup"></div>
+      </div>
+
+      <div style="margin-bottom:16px" id="o-hooks-wrap">
+        <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Key Hooks Used</div>
+        <div class="hooks-list" id="o-hooks"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="copyFullEmail()">Copy Full Email</button>
+        <button class="btn btn-secondary" onclick="copyText(document.getElementById('o-subject').textContent, this)">Copy Subject</button>
+        <button class="btn btn-secondary" onclick="generateOutreach()">Regenerate</button>
+        <a id="mailtoBtn" class="btn btn-success" href="#">Open in Mail ✉</a>
+      </div>
+    </div>
+
+    <div id="outputPlaceholder" class="panel" style="text-align:center;padding:60px 20px">
+      <div style="font-size:32px;margin-bottom:12px">✉</div>
+      <div style="color:var(--text-secondary);font-size:14px;font-weight:600;margin-bottom:8px">Your outreach email will appear here</div>
+      <div style="color:var(--text-muted);font-size:13px">Fill in the job details on the left and hit Generate</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Pre-fill from sessionStorage if coming from dashboard
+window.addEventListener('DOMContentLoaded', () => {
+  const stored = sessionStorage.getItem('outreach_job');
+  if (stored) {
+    try {
+      const j = JSON.parse(stored);
+      document.getElementById('o-title').value = j.job_title || '';
+      document.getElementById('o-company').value = j.company_name || '';
+      document.getElementById('o-location').value = j.job_location || '';
+      document.getElementById('o-score').value = j.overall_fit_score || '';
+      document.getElementById('o-reasoning').value = j.fit_reasoning || '';
+      document.getElementById('o-angle').value = j.outreach_angle || '';
+      document.getElementById('o-recruiter-name').value = j.recruiter_contact_name || '';
+      document.getElementById('o-recruiter-email').value = j.recruiter_contact_email || '';
+      sessionStorage.removeItem('outreach_job');
+    } catch(e) {}
+  }
+});
+
+async function generateOutreach() {
+  const btn = document.getElementById('genBtn');
+  btn.innerHTML = '<span class="spinner"></span> Generating...';
+  btn.disabled = true;
+
+  const job = {
+    job_title: document.getElementById('o-title').value,
+    company_name: document.getElementById('o-company').value,
+    job_location: document.getElementById('o-location').value,
+    overall_fit_score: document.getElementById('o-score').value,
+    fit_reasoning: document.getElementById('o-reasoning').value,
+    outreach_angle: document.getElementById('o-angle').value,
+    required_skills: '',
+  };
+
+  try {
+    const res = await fetch('/api/outreach/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        job,
+        recruiter_name: document.getElementById('o-recruiter-name').value,
+        recruiter_email: document.getElementById('o-recruiter-email').value,
+        tone: document.getElementById('o-tone').value,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      alert('Error: ' + data.error);
+      return;
+    }
+
+    document.getElementById('o-subject').textContent = data.subject_line || '';
+    document.getElementById('o-body').textContent = data.email_body || '';
+    document.getElementById('o-followup').textContent = data.follow_up_line || '';
+
+    const hooks = data.key_hooks || [];
+    document.getElementById('o-hooks').innerHTML = hooks.map(h => `<span class="hook-tag">${h}</span>`).join('');
+
+    const email = document.getElementById('o-recruiter-email').value;
+    const subject = encodeURIComponent(data.subject_line || '');
+    const body = encodeURIComponent(data.email_body || '');
+    document.getElementById('mailtoBtn').href = `mailto:${email}?subject=${subject}&body=${body}`;
+
+    document.getElementById('outputPanel').style.display = 'block';
+    document.getElementById('outputPlaceholder').style.display = 'none';
+
+  } catch(err) {
+    alert('Request failed: ' + err.message);
+  } finally {
+    btn.innerHTML = '✉ Generate Outreach Email';
+    btn.disabled = false;
+  }
+}
+
+function copyFullEmail() {
+  const subject = document.getElementById('o-subject').textContent;
+  const body = document.getElementById('o-body').textContent;
+  const full = `Subject: ${subject}\n\n${body}`;
+  navigator.clipboard.writeText(full).then(() => alert('Copied to clipboard!'));
+}
+</script>
+{% endblock %}
