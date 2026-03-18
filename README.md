@@ -226,7 +226,7 @@ Raymond James · Tech Data · USAA Tampa · Catalina · Verizon Business
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/elijahbeese/recruiter-recon-ai.git
+git clone https://github.com/elijahbeese/sitrep.git
 cd recruiter-recon-ai
 ```
 
