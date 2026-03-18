@@ -1,27 +1,23 @@
 """
 discover_jobs_v2_5.py
 ---------------------
-Recruiter Recon AI — Job Discovery Engine v2.5
+SITREP — Discovery Engine v2.5
 
 Changes from v2.4:
-  - Full async/parallel architecture using aiohttp
-    All sources fire concurrently — runtime cut from 15 min to under 3 min
-  - JSearch API (RapidAPI) — hits LinkedIn, Indeed, Glassdoor, ZipRecruiter
-    simultaneously via Google for Jobs aggregation
+  - Parallel execution via ThreadPoolExecutor (replaces aiohttp — more reliable)
+  - JSearch API — hits LinkedIn, Indeed, Glassdoor, ZipRecruiter simultaneously
   - Adzuna API — aggregates 15+ job boards with full descriptions
-  - Greenhouse company directory scraping — pulls verified company list
-    instead of guessing slugs (fixes the 404 problem)
-  - Lever company directory scraping — same approach
-  - The Muse API — free, no key, tech/cyber company jobs with descriptions
-  - USAJobs, ClearanceJobs, iCIMS remain as sync sources (rate limited APIs)
-  - Delta detection groundwork — seen_urls persisted to output/seen_urls.json
+  - Greenhouse directory scraping — verified slugs instead of guessing
+  - Lever expanded company list — 54 boards queried in parallel
+  - The Muse API — free, no key needed
+  - Delta detection — seen URLs saved to output/seen_urls.json
+  - Target runtime: under 3 minutes
 """
 
 # ─────────────────────────────────────────────
 # SECTION 1: IMPORTS & CONSTANTS
 # ─────────────────────────────────────────────
 
-import asyncio
 import csv
 import json
 import os
@@ -29,11 +25,11 @@ import re
 import time
 import random
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import quote_plus, urlparse
 
-import aiohttp
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -42,18 +38,18 @@ from openai import OpenAI
 load_dotenv()
 
 # ── API credentials ────────────────────────────────────────────────────────────
-USAJOBS_API_KEY     = os.getenv("USAJOBS_API_KEY", "").strip()
-USAJOBS_USER_AGENT  = os.getenv("USAJOBS_USER_AGENT", "").strip()
-JSEARCH_API_KEY     = os.getenv("JSEARCH_API_KEY", "").strip()
-ADZUNA_APP_ID       = os.getenv("ADZUNA_APP_ID", "").strip()
-ADZUNA_APP_KEY      = os.getenv("ADZUNA_APP_KEY", "").strip()
+USAJOBS_API_KEY    = os.getenv("USAJOBS_API_KEY", "").strip()
+USAJOBS_USER_AGENT = os.getenv("USAJOBS_USER_AGENT", "").strip()
+JSEARCH_API_KEY    = os.getenv("JSEARCH_API_KEY", "").strip()
+ADZUNA_APP_ID      = os.getenv("ADZUNA_APP_ID", "").strip()
+ADZUNA_APP_KEY     = os.getenv("ADZUNA_APP_KEY", "").strip()
 
 # ── Runtime config ─────────────────────────────────────────────────────────────
-REQUEST_TIMEOUT     = 15
-ASYNC_TIMEOUT       = aiohttp.ClientTimeout(total=15)
+REQUEST_TIMEOUT            = 12
 ENRICHMENT_SCORE_THRESHOLD = 50
-MAX_RAW_POOL        = 600
-SEEN_URLS_PATH      = Path("output/seen_urls.json")
+MAX_RAW_POOL               = 600
+MAX_WORKERS                = 20
+SEEN_URLS_PATH             = Path("output/seen_urls.json")
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -61,17 +57,20 @@ USER_AGENT = (
     "Chrome/122.0.0.0 Safari/537.36"
 )
 
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": USER_AGENT})
+
 # ── Source priority ────────────────────────────────────────────────────────────
 SOURCE_PRIORITY = {
     "usajobs":       95,
     "clearancejobs": 92,
-    "jsearch":       88,
-    "adzuna":        85,
     "greenhouse":    90,
     "lever":         90,
-    "muse":          82,
+    "jsearch":       88,
     "workday":       88,
     "icims":         85,
+    "adzuna":        85,
+    "muse":          82,
     "other":         40,
 }
 
@@ -101,7 +100,63 @@ JUNK_MARKERS = [
     "human resources manager", "accountant", "marketing manager",
 ]
 
-# ── JSearch queries ────────────────────────────────────────────────────────────
+# ── Company lists ──────────────────────────────────────────────────────────────
+GREENHOUSE_COMPANIES = [
+    "crowdstrike", "sentinelone", "huntress", "expel", "redcanary",
+    "blumira", "deepwatch", "threatlocker", "recordedfuture", "flashpoint",
+    "dragos", "claroty", "vectra", "exabeam", "anomali", "cybereason",
+    "coalfire", "optiv", "guidepoint", "trustwave", "secureworks",
+    "rapid7", "tenable", "qualys", "beyondtrust", "cyberark",
+    "sailpoint", "okta", "delinea", "paloaltonetworks", "fortinet",
+    "capitalone", "stripe", "palantir", "anduril", "govini",
+    "deloitte", "accenture", "ibm", "lacework", "snyk",
+    "wiz", "orca-security", "apiiro", "armorcode", "deepinstinct",
+    "axonius", "sevenzero", "netspi", "horizon3ai", "runzero",
+    "corelight", "gravwell", "datto", "cofense", "proofpoint",
+    "abnormal-security", "material-security", "ironscales", "tessian",
+    "flare-systems", "securin", "veriti", "revelstoke", "torq",
+    "microsoft", "google", "amazon", "apple", "meta",
+    "oracle", "salesforce", "servicenow", "splunk", "cloudflare",
+    "datadog", "elastic", "hashicorp", "saic", "leidos",
+    "boozallen", "caci", "mantech", "peraton", "parsons",
+    "usaa", "jpmorgan", "bankofamerica", "wellsfargo", "visa",
+    "mastercard", "paypal", "robinhood", "coinbase", "brex",
+    "hca-healthcare", "cigna", "unitedhealth", "humana", "nextera",
+]
+
+LEVER_COMPANIES = [
+    "palantir", "anduril", "shield-ai", "rebellion-defense", "scale-ai",
+    "primer", "govini", "c3-ai", "crowdstrike", "huntress", "expel",
+    "redcanary", "blumira", "lumu", "ncc-group", "bishopfox",
+    "abnormal-security", "material-security", "cofense", "ironscales",
+    "cloudflare", "datadog", "elastic", "lacework", "wiz",
+    "capitalone", "stripe", "brex", "plaid", "robinhood", "coinbase",
+    "oscar-health", "deloitte", "boozallen", "telos",
+    "flare-systems", "securin", "veriti", "revelstoke", "torq",
+    "intsights", "cybersixgill", "deepinstinct", "axonius",
+    "microsoft", "google", "amazon", "apple", "meta", "ibm",
+    "techdata", "verizon-business",
+]
+
+ICIMS_COMPANIES = [
+    ("bah", "careers.boozallen.com", "Booz Allen Hamilton"),
+    ("mantech", "careers.mantech.com", "ManTech"),
+    ("caci", "careers.caci.com", "CACI"),
+    ("mitre", "careers.mitre.org", "MITRE"),
+    ("l3harris", "careers.l3harris.com", "L3Harris"),
+    ("jpmorgan", "careers.jpmorgan.com", "JPMorgan Chase"),
+    ("bankofamerica", "careers.bankofamerica.com", "Bank of America"),
+    ("hca", "careers.hcahealthcare.com", "HCA Healthcare"),
+    ("raymond-james", "careers.raymondjames.com", "Raymond James"),
+]
+
+USAJOBS_KEYWORDS = [
+    "cybersecurity analyst", "SOC analyst", "information security analyst",
+    "network security", "incident response analyst", "cyber operations",
+    "threat analyst", "vulnerability analyst", "security operations center",
+    "cyber defense analyst", "computer network defense",
+]
+
 JSEARCH_QUERIES = [
     "SOC analyst entry level",
     "cybersecurity analyst entry level clearance",
@@ -115,52 +170,11 @@ JSEARCH_QUERIES = [
     "NOC analyst cybersecurity",
 ]
 
-# ── Adzuna queries ─────────────────────────────────────────────────────────────
 ADZUNA_QUERIES = [
-    "SOC analyst",
-    "cybersecurity analyst",
-    "incident response analyst",
-    "network security analyst",
-    "information security analyst",
-    "cyber operations",
-    "threat analyst",
-    "vulnerability analyst",
-    "SIEM analyst",
-    "security engineer entry level",
-]
-
-# ── The Muse categories ────────────────────────────────────────────────────────
-MUSE_CATEGORIES = [
-    "IT", "Software Engineer", "Data Science", "DevOps", "Cybersecurity"
-]
-
-# ── USAJobs keywords ───────────────────────────────────────────────────────────
-USAJOBS_KEYWORDS = [
-    "cybersecurity analyst",
-    "SOC analyst",
-    "information security analyst",
-    "network security",
-    "incident response analyst",
-    "cyber operations",
-    "threat analyst",
-    "vulnerability analyst",
-    "security operations center",
-    "cyber defense analyst",
-    "computer network defense",
-    "information systems security",
-]
-
-# ── iCIMS employers ────────────────────────────────────────────────────────────
-ICIMS_COMPANIES = [
-    ("bah", "careers.boozallen.com", "Booz Allen Hamilton"),
-    ("mantech", "careers.mantech.com", "ManTech"),
-    ("caci", "careers.caci.com", "CACI"),
-    ("mitre", "careers.mitre.org", "MITRE"),
-    ("l3harris", "careers.l3harris.com", "L3Harris"),
-    ("jpmorgan", "careers.jpmorgan.com", "JPMorgan Chase"),
-    ("bankofamerica", "careers.bankofamerica.com", "Bank of America"),
-    ("hca", "careers.hcahealthcare.com", "HCA Healthcare"),
-    ("raymond-james", "careers.raymondjames.com", "Raymond James"),
+    "SOC analyst", "cybersecurity analyst", "incident response analyst",
+    "network security analyst", "information security analyst",
+    "cyber operations", "threat analyst", "vulnerability analyst",
+    "SIEM analyst", "security engineer entry level",
 ]
 
 
@@ -229,7 +243,7 @@ def load_profile(path: str = "candidate_profile_generated.json") -> Dict[str, An
 def load_client() -> OpenAI:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
-        raise ValueError("OPENAI_API_KEY is missing in .env")
+        raise ValueError("OPENAI_API_KEY missing in .env")
     return OpenAI(api_key=api_key)
 
 
@@ -249,55 +263,31 @@ def write_csv(path: str, rows: List[Dict[str, Any]]) -> Path:
     return out
 
 
-def score_heuristic(
-    title: str,
-    description: str,
-    source: str,
-    profile: Dict[str, Any],
-) -> int:
+def score_heuristic(title: str, description: str, source: str, profile: Dict[str, Any]) -> int:
     text = f"{title} {description}".lower()
     score = SOURCE_PRIORITY.get(source, 40)
-
     for kw in CYBER_KEYWORDS:
         if kw in text:
             score += 3
-
     if not is_too_senior(title):
         score += 12
-
-    entry_terms = ["entry", "junior", "associate", "tier 1", "tier i",
-                   "level i", "early career", "new grad", "analyst i"]
+    entry_terms = ["entry", "junior", "associate", "tier 1", "tier i", "level i", "early career", "new grad", "analyst i"]
     if any(t in text for t in entry_terms):
         score += 10
-
     for role in profile.get("target_roles", []):
         if role.lower() in text:
             score += 10
-
     matched = sum(1 for s in profile.get("skills", [])[:20] if s.lower() in text)
     score += min(matched * 3, 24)
-
-    clearance_rel = profile.get("clearance_relevance", "").lower()
-    if "secret" in clearance_rel:
+    if "secret" in profile.get("clearance_relevance", "").lower():
         if any(t in text for t in ["clearance", "secret", "top secret", "dod", "federal"]):
             score += 15
-
     if any(t in text for t in ["defense", "army", "dod", "federal", "critical infrastructure", "ics", "scada"]):
         score += 10
-
     return score
 
 
-def make_job_row(
-    company_name: str,
-    company_domain: str,
-    job_title: str,
-    job_url: str,
-    job_location: str,
-    notes: str,
-    source: str,
-    profile: Dict[str, Any],
-) -> Dict[str, Any]:
+def make_job_row(company_name, company_domain, job_title, job_url, job_location, notes, source, profile):
     return {
         "company_name":    clean_text(company_name),
         "company_domain":  clean_text(company_domain),
@@ -315,71 +305,38 @@ def make_job_row(
 
 def dedupe_jobs(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     seen_urls: set = set()
-    seen_company_title: set = set()
+    seen_ct: set = set()
     deduped = []
     for row in rows:
         url = clean_text(row.get("job_url", "")).lower()
-        company = clean_text(row.get("company_name", "")).lower()
-        title = normalize_title(row.get("job_title", ""))
-        ct_key = f"{company}||{title}"
+        ct = f"{clean_text(row.get('company_name','')).lower()}||{normalize_title(row.get('job_title',''))}"
         if url and url in seen_urls:
             continue
-        if ct_key in seen_company_title:
+        if ct in seen_ct:
             continue
         if url:
             seen_urls.add(url)
-        seen_company_title.add(ct_key)
+        seen_ct.add(ct)
         deduped.append(row)
     return deduped
 
 
-# ─────────────────────────────────────────────
-# SECTION 3: ASYNC HTTP HELPERS
-# ─────────────────────────────────────────────
-
-async def async_get_json(
-    session: aiohttp.ClientSession,
-    url: str,
-    headers: Optional[Dict] = None,
-    params: Optional[Dict] = None,
-) -> Optional[Dict]:
+def safe_get(url: str, headers: Optional[Dict] = None, params: Optional[Dict] = None) -> Optional[requests.Response]:
     try:
-        async with session.get(url, headers=headers, params=params) as resp:
-            if resp.status == 200:
-                return await resp.json()
-            return None
-    except Exception:
-        return None
-
-
-async def async_get_text(
-    session: aiohttp.ClientSession,
-    url: str,
-    headers: Optional[Dict] = None,
-    params: Optional[Dict] = None,
-) -> Optional[str]:
-    try:
-        async with session.get(url, headers=headers, params=params) as resp:
-            if resp.status == 200:
-                return await resp.text()
-            return None
+        resp = SESSION.get(url, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        return resp
     except Exception:
         return None
 
 
 # ─────────────────────────────────────────────
-# SECTION 4: JSEARCH API (async)
+# SECTION 3: JSEARCH (parallel)
 # ─────────────────────────────────────────────
 
-async def fetch_jsearch_query(
-    session: aiohttp.ClientSession,
-    query: str,
-    location: str,
-    profile: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+def _jsearch_single(query: str, location: str, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
     if not JSEARCH_API_KEY:
         return []
-
     headers = {
         "x-rapidapi-host": "jsearch.p.rapidapi.com",
         "x-rapidapi-key": JSEARCH_API_KEY,
@@ -391,113 +348,96 @@ async def fetch_jsearch_query(
         "country": "us",
         "date_posted": "month",
     }
-
-    data = await async_get_json(session, "https://jsearch.p.rapidapi.com/search", headers=headers, params=params)
-    if not data:
+    resp = safe_get("https://jsearch.p.rapidapi.com/search", headers=headers, params=params)
+    if not resp:
         return []
 
     results = []
+    try:
+        data = resp.json()
+    except Exception:
+        return []
+
     for job in data.get("data", []):
         title = clean_text(job.get("job_title", ""))
         company = clean_text(job.get("employer_name", ""))
         job_url = clean_text(job.get("job_apply_link", "") or job.get("job_google_link", ""))
         loc = clean_text(f"{job.get('job_city','')}, {job.get('job_state','')}".strip(", "))
         description = clean_text(job.get("job_description", ""))[:300]
-        domain = clean_text(job.get("employer_website", "")).replace("https://","").replace("http://","").split("/")[0]
+        domain = clean_text(job.get("employer_website", "") or "").replace("https://","").replace("http://","").split("/")[0]
 
         if not title or not job_url:
             continue
         if not is_relevant(title, description) or is_too_senior(title):
             continue
 
-        results.append(make_job_row(
-            company_name=company,
-            company_domain=domain,
-            job_title=title,
-            job_url=job_url,
-            job_location=loc or location,
-            notes=description,
-            source="jsearch",
-            profile=profile,
-        ))
+        results.append(make_job_row(company, domain, title, job_url, loc or location, description, "jsearch", profile))
 
     return results
 
 
-async def fetch_jsearch_all(
-    profile: Dict[str, Any],
-    max_results: int = 200,
-) -> List[Dict[str, Any]]:
+def fetch_jsearch(profile: Dict[str, Any], max_results: int = 200) -> List[Dict[str, Any]]:
     if not JSEARCH_API_KEY:
         print("[JSearch] Skipping — JSEARCH_API_KEY not configured.")
         return []
 
     locations = profile.get("location_preferences", ["Tampa, FL"])[:2] + ["Remote", "United States"]
+    tasks = [(q, l) for q in JSEARCH_QUERIES[:8] for l in locations[:3]]
+
     results = []
     seen_urls: set = set()
 
-    async with aiohttp.ClientSession(timeout=ASYNC_TIMEOUT) as session:
-        tasks = []
-        for query in JSEARCH_QUERIES[:8]:
-            for location in locations[:3]:
-                tasks.append(fetch_jsearch_query(session, query, location, profile))
-
-        batches = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for batch in batches:
-            if isinstance(batch, Exception) or not batch:
-                continue
-            for job in batch:
-                url = job.get("job_url", "")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    results.append(job)
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = {ex.submit(_jsearch_single, q, l, profile): (q, l) for q, l in tasks}
+        for future in as_completed(futures):
+            try:
+                for job in future.result():
+                    url = job.get("job_url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        results.append(job)
+            except Exception:
+                pass
 
     print(f"[JSearch] {len(results)} postings found")
     return results[:max_results]
 
 
 # ─────────────────────────────────────────────
-# SECTION 5: ADZUNA API (async)
+# SECTION 4: ADZUNA (parallel)
 # ─────────────────────────────────────────────
 
-async def fetch_adzuna_query(
-    session: aiohttp.ClientSession,
-    query: str,
-    location: str,
-    profile: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+def _adzuna_single(query: str, location: str, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return []
 
-    # Adzuna location mapping
     loc_map = {
-        "Tampa, FL": "florida",
-        "Florida": "florida",
-        "Remote": "",
-        "United States": "",
-        "Virginia": "virginia",
-        "Texas": "texas",
+        "Tampa, FL": "florida", "Florida": "florida",
+        "Remote": "", "United States": "",
+        "Virginia": "virginia", "Texas": "texas",
     }
     adzuna_loc = loc_map.get(location, "")
 
-    base_url = "https://api.adzuna.com/v1/api/jobs/us/search/1"
     params = {
         "app_id": ADZUNA_APP_ID,
         "app_key": ADZUNA_APP_KEY,
         "results_per_page": 20,
         "what": query,
-        "content-type": "application/json",
         "sort_by": "date",
     }
     if adzuna_loc:
         params["where"] = adzuna_loc
 
-    data = await async_get_json(session, base_url, params=params)
-    if not data:
+    resp = safe_get("https://api.adzuna.com/v1/api/jobs/us/search/1", params=params)
+    if not resp:
         return []
 
     results = []
+    try:
+        data = resp.json()
+    except Exception:
+        return []
+
     for job in data.get("results", []):
         title = clean_text(job.get("title", ""))
         company = clean_text((job.get("company") or {}).get("display_name", ""))
@@ -511,297 +451,198 @@ async def fetch_adzuna_query(
         if not is_relevant(title, description) or is_too_senior(title):
             continue
 
-        results.append(make_job_row(
-            company_name=company,
-            company_domain="",
-            job_title=title,
-            job_url=job_url,
-            job_location=loc_str or location,
-            notes=description,
-            source="adzuna",
-            profile=profile,
-        ))
+        results.append(make_job_row(company, "", title, job_url, loc_str or location, description, "adzuna", profile))
 
     return results
 
 
-async def fetch_adzuna_all(
-    profile: Dict[str, Any],
-    max_results: int = 200,
-) -> List[Dict[str, Any]]:
+def fetch_adzuna(profile: Dict[str, Any], max_results: int = 200) -> List[Dict[str, Any]]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-        print("[Adzuna] Skipping — ADZUNA_APP_ID or ADZUNA_APP_KEY not configured.")
+        print("[Adzuna] Skipping — credentials not configured.")
         return []
 
     locations = profile.get("location_preferences", ["Tampa, FL"])[:2] + ["Remote", "United States"]
+    tasks = [(q, l) for q in ADZUNA_QUERIES[:8] for l in locations[:3]]
+
     results = []
     seen_urls: set = set()
 
-    async with aiohttp.ClientSession(timeout=ASYNC_TIMEOUT) as session:
-        tasks = []
-        for query in ADZUNA_QUERIES[:8]:
-            for location in locations[:3]:
-                tasks.append(fetch_adzuna_query(session, query, location, profile))
-
-        batches = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for batch in batches:
-            if isinstance(batch, Exception) or not batch:
-                continue
-            for job in batch:
-                url = job.get("job_url", "")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    results.append(job)
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = {ex.submit(_adzuna_single, q, l, profile): (q, l) for q, l in tasks}
+        for future in as_completed(futures):
+            try:
+                for job in future.result():
+                    url = job.get("job_url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        results.append(job)
+            except Exception:
+                pass
 
     print(f"[Adzuna] {len(results)} postings found")
     return results[:max_results]
 
 
 # ─────────────────────────────────────────────
-# SECTION 6: GREENHOUSE DIRECTORY (async)
+# SECTION 5: GREENHOUSE (parallel)
 # ─────────────────────────────────────────────
 
-async def fetch_greenhouse_company_list(
-    session: aiohttp.ClientSession,
-) -> List[str]:
-    """
-    Scrape Greenhouse's public company directory to get verified slugs.
-    Much better than guessing — returns hundreds of real company boards.
-    """
-    slugs = []
-
-    # Greenhouse publishes a sitemap we can use
-    sitemap_url = "https://boards.greenhouse.io/sitemap.xml"
-    text = await async_get_text(session, sitemap_url)
-
-    if text:
-        # Extract company slugs from sitemap URLs
-        matches = re.findall(r'boards\.greenhouse\.io/([a-zA-Z0-9_-]+)', text)
-        # Filter for likely cybersecurity/tech companies
-        cyber_hints = [
-            "security", "cyber", "defense", "intelligence", "tech", "data",
-            "cloud", "network", "system", "digital", "software", "engineer",
-            "capital", "bank", "financial", "health", "energy", "federal",
-        ]
-        # Return all unique slugs — we'll filter by job title relevance later
-        slugs = list(set(matches))[:300]
-
-    if not slugs:
-        # Fallback to our known good list
-        slugs = [
-            "crowdstrike", "sentinelone", "huntress", "expel", "redcanary",
-            "blumira", "deepwatch", "threatlocker", "recordedfuture", "flashpoint",
-            "dragos", "claroty", "vectra", "exabeam", "anomali", "cybereason",
-            "coalfire", "optiv", "guidepoint", "trustwave", "secureworks",
-            "rapid7", "tenable", "qualys", "beyondtrust", "cyberark",
-            "sailpoint", "okta", "delinea", "paloaltonetworks", "fortinet",
-            "capitalone", "stripe", "palantir", "anduril", "govini",
-            "deloitte", "accenture", "ibm", "microsoft", "google",
-        ]
-
-    return slugs
-
-
-async def fetch_greenhouse_jobs_for_company(
-    session: aiohttp.ClientSession,
-    slug: str,
-    profile: Dict[str, Any],
-) -> List[Dict[str, Any]]:
-    url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
-    data = await async_get_json(session, url)
-    if not data:
+def _greenhouse_single(slug: str, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+    resp = safe_get(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs")
+    if not resp:
+        return []
+    try:
+        jobs = resp.json().get("jobs", [])
+    except Exception:
         return []
 
     results = []
-    for job in data.get("jobs", []):
+    for job in jobs:
         title = clean_text(job.get("title", ""))
         job_url = clean_text(job.get("absolute_url", ""))
         location = clean_text((job.get("location") or {}).get("name", ""))
-
         if not title or not job_url:
             continue
         if not is_relevant(title) or is_too_senior(title):
             continue
-
         results.append(make_job_row(
-            company_name=slug.replace("-", " ").title(),
-            company_domain=f"{slug}.com",
-            job_title=title,
-            job_url=job_url,
-            job_location=location,
-            notes=f"Greenhouse — {slug}",
-            source="greenhouse",
-            profile=profile,
+            slug.replace("-", " ").title(), f"{slug}.com",
+            title, job_url, location, f"Greenhouse — {slug}", "greenhouse", profile
         ))
-
     return results
 
 
-async def fetch_greenhouse_all(
-    profile: Dict[str, Any],
-    max_results: int = 300,
-) -> List[Dict[str, Any]]:
-    async with aiohttp.ClientSession(timeout=ASYNC_TIMEOUT) as session:
-        slugs = await fetch_greenhouse_company_list(session)
-        print(f"[Greenhouse] Querying {len(slugs)} company boards in parallel...")
+def fetch_greenhouse(profile: Dict[str, Any], max_results: int = 300) -> List[Dict[str, Any]]:
+    results = []
+    seen_urls: set = set()
 
-        tasks = [fetch_greenhouse_jobs_for_company(session, slug, profile) for slug in slugs]
-        batches = await asyncio.gather(*tasks, return_exceptions=True)
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = {ex.submit(_greenhouse_single, slug, profile): slug for slug in GREENHOUSE_COMPANIES}
+        for future in as_completed(futures):
+            try:
+                for job in future.result():
+                    url = job.get("job_url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        results.append(job)
+            except Exception:
+                pass
 
-        results = []
-        seen_urls: set = set()
-        for batch in batches:
-            if isinstance(batch, Exception) or not batch:
-                continue
-            for job in batch:
-                url = job.get("job_url", "")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    results.append(job)
-
-    print(f"[Greenhouse] {len(results)} postings found across {len(slugs)} companies")
+    hits = sum(1 for _ in results)
+    print(f"[Greenhouse] {len(results)} postings found across {len(GREENHOUSE_COMPANIES)} companies")
     return results[:max_results]
 
 
 # ─────────────────────────────────────────────
-# SECTION 7: LEVER DIRECTORY (async)
+# SECTION 6: LEVER (parallel)
 # ─────────────────────────────────────────────
 
-async def fetch_lever_jobs_for_company(
-    session: aiohttp.ClientSession,
-    slug: str,
-    profile: Dict[str, Any],
-) -> List[Dict[str, Any]]:
-    url = f"https://api.lever.co/v0/postings/{slug}?mode=json"
-    data = await async_get_json(session, url)
-    if not data or not isinstance(data, list):
+def _lever_single(slug: str, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+    resp = safe_get(f"https://api.lever.co/v0/postings/{slug}?mode=json")
+    if not resp:
+        return []
+    try:
+        jobs = resp.json()
+        if not isinstance(jobs, list):
+            return []
+    except Exception:
         return []
 
     results = []
-    for job in data:
+    for job in jobs:
         title = clean_text(job.get("text", ""))
         job_url = clean_text(job.get("hostedUrl", ""))
-        categories = job.get("categories", {})
-        location = clean_text(categories.get("location", ""))
+        location = clean_text((job.get("categories") or {}).get("location", ""))
         description = strip_html(job.get("descriptionPlain", "") or "")
+        if not title or not job_url:
+            continue
+        if not is_relevant(title, description) or is_too_senior(title):
+            continue
+        results.append(make_job_row(
+            slug.replace("-", " ").title(), f"{slug}.com",
+            title, job_url, location, description[:300], "lever", profile
+        ))
+    return results
+
+
+def fetch_lever(profile: Dict[str, Any], max_results: int = 300) -> List[Dict[str, Any]]:
+    results = []
+    seen_urls: set = set()
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = {ex.submit(_lever_single, slug, profile): slug for slug in LEVER_COMPANIES}
+        for future in as_completed(futures):
+            try:
+                for job in future.result():
+                    url = job.get("job_url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        results.append(job)
+            except Exception:
+                pass
+
+    print(f"[Lever] {len(results)} postings found across {len(LEVER_COMPANIES)} companies")
+    return results[:max_results]
+
+
+# ─────────────────────────────────────────────
+# SECTION 7: THE MUSE (parallel)
+# ─────────────────────────────────────────────
+
+def _muse_single(category: str, page: int, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+    resp = safe_get(
+        f"https://www.themuse.com/api/public/jobs",
+        params={"category": category, "page": page, "descending": "true"}
+    )
+    if not resp:
+        return []
+    try:
+        data = resp.json()
+    except Exception:
+        return []
+
+    results = []
+    for job in data.get("results", []):
+        title = clean_text(job.get("name", ""))
+        company = clean_text((job.get("company") or {}).get("name", ""))
+        job_url = clean_text((job.get("refs") or {}).get("landing_page", ""))
+        locations = job.get("locations", [{}])
+        location = clean_text(locations[0].get("name", "")) if locations else ""
+        description = strip_html(job.get("contents", ""))[:300]
 
         if not title or not job_url:
             continue
         if not is_relevant(title, description) or is_too_senior(title):
             continue
 
-        results.append(make_job_row(
-            company_name=slug.replace("-", " ").title(),
-            company_domain=f"{slug}.com",
-            job_title=title,
-            job_url=job_url,
-            job_location=location,
-            notes=description[:300],
-            source="lever",
-            profile=profile,
-        ))
-
+        results.append(make_job_row(company, "", title, job_url, location, description, "muse", profile))
     return results
 
 
-async def fetch_lever_all(
-    profile: Dict[str, Any],
-    max_results: int = 300,
-) -> List[Dict[str, Any]]:
-    # Expanded Lever company list
-    lever_companies = [
-        "palantir", "anduril", "shield-ai", "rebellion-defense", "scale-ai",
-        "primer", "govini", "c3-ai", "crowdstrike", "huntress", "expel",
-        "redcanary", "blumira", "lumu", "ncc-group", "bishopfox",
-        "abnormal-security", "material-security", "cofense", "ironscales",
-        "cloudflare", "datadog", "elastic", "lacework", "wiz",
-        "capitalone", "stripe", "brex", "plaid", "robinhood", "coinbase",
-        "oscar-health", "deloitte", "boozallen", "telos",
-        "flare-systems", "securin", "veriti", "revelstoke", "torq",
-        "intsights", "cybersixgill", "deepinstinct", "axonius",
-        "sevenzero", "infosec", "techdata", "verizon-business",
-        "microsoft", "google", "amazon", "apple", "meta", "ibm",
-    ]
-
-    async with aiohttp.ClientSession(timeout=ASYNC_TIMEOUT) as session:
-        print(f"[Lever] Querying {len(lever_companies)} company boards in parallel...")
-        tasks = [fetch_lever_jobs_for_company(session, slug, profile) for slug in lever_companies]
-        batches = await asyncio.gather(*tasks, return_exceptions=True)
-
-        results = []
-        seen_urls: set = set()
-        for batch in batches:
-            if isinstance(batch, Exception) or not batch:
-                continue
-            for job in batch:
-                url = job.get("job_url", "")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    results.append(job)
-
-    print(f"[Lever] {len(results)} postings found")
-    return results[:max_results]
-
-
-# ─────────────────────────────────────────────
-# SECTION 8: THE MUSE API (async, free, no key)
-# ─────────────────────────────────────────────
-
-async def fetch_muse_all(
-    profile: Dict[str, Any],
-    max_results: int = 100,
-) -> List[Dict[str, Any]]:
-    """
-    The Muse public API — free, no auth, tech/cyber company jobs with descriptions.
-    """
+def fetch_muse(profile: Dict[str, Any], max_results: int = 100) -> List[Dict[str, Any]]:
+    categories = ["IT", "Software Engineer", "Data Science", "DevOps", "Cybersecurity"]
     results = []
     seen_urls: set = set()
 
-    async with aiohttp.ClientSession(timeout=ASYNC_TIMEOUT) as session:
-        tasks = []
-        for category in MUSE_CATEGORIES:
-            for page in range(1, 4):
-                url = f"https://www.themuse.com/api/public/jobs?category={quote_plus(category)}&page={page}&descending=true"
-                tasks.append(async_get_json(session, url))
-
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for data in responses:
-            if isinstance(data, Exception) or not data:
-                continue
-            for job in data.get("results", []):
-                title = clean_text(job.get("name", ""))
-                company = clean_text((job.get("company") or {}).get("name", ""))
-                job_url = clean_text(job.get("refs", {}).get("landing_page", ""))
-                locations = job.get("locations", [{}])
-                location = clean_text(locations[0].get("name", "")) if locations else ""
-                contents = job.get("contents", "")
-                description = strip_html(contents)[:300]
-
-                if not title or not job_url or job_url in seen_urls:
-                    continue
-                if not is_relevant(title, description) or is_too_senior(title):
-                    continue
-
-                seen_urls.add(job_url)
-                results.append(make_job_row(
-                    company_name=company,
-                    company_domain="",
-                    job_title=title,
-                    job_url=job_url,
-                    job_location=location,
-                    notes=description,
-                    source="muse",
-                    profile=profile,
-                ))
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        futures = {ex.submit(_muse_single, cat, page, profile): (cat, page)
+                   for cat in categories for page in range(1, 4)}
+        for future in as_completed(futures):
+            try:
+                for job in future.result():
+                    url = job.get("job_url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        results.append(job)
+            except Exception:
+                pass
 
     print(f"[The Muse] {len(results)} postings found")
     return results[:max_results]
 
 
 # ─────────────────────────────────────────────
-# SECTION 9: USAJOBS API (sync — rate limited)
+# SECTION 8: USAJOBS (sync — rate limited)
 # ─────────────────────────────────────────────
 
 def fetch_usajobs(profile: Dict[str, Any], max_results: int = 150) -> List[Dict[str, Any]]:
@@ -814,7 +655,6 @@ def fetch_usajobs(profile: Dict[str, Any], max_results: int = 150) -> List[Dict[
         "User-Agent": USAJOBS_USER_AGENT,
         "Host": "data.usajobs.gov",
     }
-
     locations = profile.get("location_preferences", ["Tampa, FL"])[:3] + ["", "Remote"]
     results = []
     seen_ids: set = set()
@@ -834,9 +674,7 @@ def fetch_usajobs(profile: Dict[str, Any], max_results: int = 150) -> List[Dict[
             try:
                 resp = requests.get(
                     "https://data.usajobs.gov/api/search",
-                    headers=headers,
-                    params=params,
-                    timeout=REQUEST_TIMEOUT,
+                    headers=headers, params=params, timeout=REQUEST_TIMEOUT
                 )
                 resp.raise_for_status()
                 items = resp.json().get("SearchResult", {}).get("SearchResultItems", [])
@@ -863,16 +701,9 @@ def fetch_usajobs(profile: Dict[str, Any], max_results: int = 150) -> List[Dict[
                 pay = f"Pay: {rem[0].get('MinimumRange','')}–{rem[0].get('MaximumRange','')}" if rem else ""
 
                 results.append(make_job_row(
-                    company_name=org,
-                    company_domain="usajobs.gov",
-                    job_title=title,
-                    job_url=url,
-                    job_location=loc_str,
-                    notes=f"{quals[:200]} {pay}".strip(),
-                    source="usajobs",
-                    profile=profile,
+                    org, "usajobs.gov", title, url, loc_str,
+                    f"{quals[:200]} {pay}".strip(), "usajobs", profile
                 ))
-
             time.sleep(0.3)
 
         if len(results) >= max_results:
@@ -883,31 +714,26 @@ def fetch_usajobs(profile: Dict[str, Any], max_results: int = 150) -> List[Dict[
 
 
 # ─────────────────────────────────────────────
-# SECTION 10: CLEARANCEJOBS RSS (sync)
+# SECTION 9: CLEARANCEJOBS (sync)
 # ─────────────────────────────────────────────
 
 def fetch_clearancejobs(profile: Dict[str, Any], max_results: int = 100) -> List[Dict[str, Any]]:
-    cleared_queries = [
-        "SOC analyst Secret clearance",
-        "cybersecurity analyst Secret",
-        "incident response Secret clearance",
-        "network security analyst clearance",
-        "cyber operations Secret TS",
-        "information security analyst DoD",
-        "SIEM analyst clearance",
-        "threat analyst Secret",
+    queries = [
+        "SOC analyst Secret clearance", "cybersecurity analyst Secret",
+        "incident response Secret clearance", "network security analyst clearance",
+        "cyber operations Secret TS", "information security analyst DoD",
+        "SIEM analyst clearance", "threat analyst Secret",
     ]
-    locations = profile.get("location_preferences", ["Tampa, FL"])[:3] + ["Remote"]
+    locations = profile.get("location_preferences", ["Tampa, FL"])[:2] + ["Remote"]
     results = []
     seen_urls: set = set()
 
-    for query in cleared_queries:
+    for query in queries:
         for location in locations[:2]:
             try:
-                resp = requests.get(
+                resp = SESSION.get(
                     "https://www.clearancejobs.com/jobs/rss",
                     params={"q": query, "l": location, "sort": "date"},
-                    headers={"User-Agent": USER_AGENT},
                     timeout=REQUEST_TIMEOUT,
                 )
                 resp.raise_for_status()
@@ -933,17 +759,10 @@ def fetch_clearancejobs(profile: Dict[str, Any], max_results: int = 100) -> List
                     company = parts[1].strip()
 
                 results.append(make_job_row(
-                    company_name=company,
-                    company_domain=normalized_hostname(job_url),
-                    job_title=title,
-                    job_url=job_url,
-                    job_location=location,
-                    notes=description[:300],
-                    source="clearancejobs",
-                    profile=profile,
+                    company, normalized_hostname(job_url),
+                    title, job_url, location, description[:300], "clearancejobs", profile
                 ))
-
-            time.sleep(1.0)
+            time.sleep(0.8)
 
         if len(results) >= max_results:
             break
@@ -953,54 +772,36 @@ def fetch_clearancejobs(profile: Dict[str, Any], max_results: int = 100) -> List
 
 
 # ─────────────────────────────────────────────
-# SECTION 11: iCIMS (sync)
+# SECTION 10: iCIMS (sync)
 # ─────────────────────────────────────────────
 
 def fetch_icims(profile: Dict[str, Any], max_results: int = 75) -> List[Dict[str, Any]]:
     results = []
     seen_urls: set = set()
-    keywords = ["cybersecurity", "SOC analyst", "security analyst"]
 
     for slug, domain, company_name in ICIMS_COMPANIES:
-        for keyword in keywords[:2]:
-            try:
-                resp = requests.get(
-                    f"https://{domain}/jobs/search?q={quote_plus(keyword)}",
-                    headers={"User-Agent": USER_AGENT},
-                    timeout=REQUEST_TIMEOUT,
-                )
-                resp.raise_for_status()
-            except Exception:
+        for keyword in ["cybersecurity", "SOC analyst"][:2]:
+            resp = safe_get(f"https://{domain}/jobs/search?q={quote_plus(keyword)}")
+            if not resp:
                 continue
-
             soup = BeautifulSoup(resp.text, "html.parser")
-            job_links = soup.select("a[href*='/jobs/']") or soup.select(".iCIMS_JobsTable a")
-
-            for link in job_links[:15]:
+            links = soup.select("a[href*='/jobs/']") or soup.select(".iCIMS_JobsTable a")
+            for link in links[:15]:
                 title = clean_text(link.get_text())
                 href = link.get("href", "")
                 if not title or not href:
                     continue
-
                 job_url = href if href.startswith("http") else f"https://{domain}{href}"
                 if job_url in seen_urls:
                     continue
                 if not is_relevant(title) or is_too_senior(title):
                     continue
-
                 seen_urls.add(job_url)
                 results.append(make_job_row(
-                    company_name=company_name,
-                    company_domain=domain,
-                    job_title=title,
-                    job_url=job_url,
-                    job_location="",
-                    notes=f"iCIMS — {company_name}",
-                    source="icims",
-                    profile=profile,
+                    company_name, domain, title, job_url, "",
+                    f"iCIMS — {company_name}", "icims", profile
                 ))
-
-            time.sleep(random.uniform(0.5, 1.5))
+            time.sleep(0.8)
 
         if len(results) >= max_results:
             break
@@ -1010,7 +811,7 @@ def fetch_icims(profile: Dict[str, Any], max_results: int = 75) -> List[Dict[str
 
 
 # ─────────────────────────────────────────────
-# SECTION 12: AI RERANKING
+# SECTION 11: AI RERANKING
 # ─────────────────────────────────────────────
 
 def ai_rerank_candidates(
@@ -1059,14 +860,14 @@ def ai_rerank_candidates(
 
     clearance = "Active Secret clearance. TS adjudication in progress. Security+ meets DoD 8570 IAT II."
     instructions = (
-        "You are selecting the best cybersecurity job matches for a candidate. "
+        "You are selecting the best cybersecurity job matches for an entry-level candidate. "
         f"CLEARANCE: {clearance} "
         "Prefer: entry-level to early-career SOC/NOC/IR/threat analyst roles, "
         "cleared/DoD positions, defense contractors, federal agencies, "
         "private sector cybersecurity companies, banks with large security teams. "
-        "Penalize: roles requiring 5+ years, non-cyber roles, software engineering "
-        "roles unless security-focused, roles clearly outside candidate background. "
-        "Score conservatively. Only score 50+ for genuine matches."
+        "Penalize: roles requiring 5+ years, non-cyber roles, "
+        "software engineering roles unless security-focused. "
+        f"Only include jobs with fit_score >= {ENRICHMENT_SCORE_THRESHOLD}."
     )
 
     prompt = f"""
@@ -1083,7 +884,7 @@ CANDIDATE:
 JOBS ({len(prompt_candidates)} total):
 {json.dumps(prompt_candidates, indent=2)}
 
-Return top {keep_count} ranked by fit. Only include jobs with fit_score >= {ENRICHMENT_SCORE_THRESHOLD}.
+Return top {keep_count} ranked by fit. Only include fit_score >= {ENRICHMENT_SCORE_THRESHOLD}.
 """
 
     try:
@@ -1118,36 +919,12 @@ Return top {keep_count} ranked by fit. Only include jobs with fit_score >= {ENRI
         key=lambda x: (int(x.get("ai_fit_score", 0)), int(x.get("discovery_score", 0))),
         reverse=True,
     )
-
     return reranked[:keep_count]
 
 
 # ─────────────────────────────────────────────
-# SECTION 13: MAIN PIPELINE
+# SECTION 12: MAIN PIPELINE
 # ─────────────────────────────────────────────
-
-async def run_async_sources(profile: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Run all async sources concurrently."""
-    print("[Discovery] Launching async sources in parallel...")
-
-    results = await asyncio.gather(
-        fetch_jsearch_all(profile),
-        fetch_adzuna_all(profile),
-        fetch_greenhouse_all(profile),
-        fetch_lever_all(profile),
-        fetch_muse_all(profile),
-        return_exceptions=True,
-    )
-
-    all_jobs = []
-    for r in results:
-        if isinstance(r, Exception):
-            print(f"  [Async] Source failed: {r}")
-            continue
-        all_jobs.extend(r)
-
-    return all_jobs
-
 
 def discover_jobs_from_profile(
     profile: Dict[str, Any],
@@ -1162,31 +939,46 @@ def discover_jobs_from_profile(
     print("  SITREP — Discovery Engine v2.5")
     print("═" * 60)
     print(f"  Candidate: {profile.get('name', 'Unknown')}")
-    print(f"  Sources:   JSearch · Adzuna · Greenhouse · Lever · Muse")
-    print(f"             USAJobs · ClearanceJobs · iCIMS")
-    print(f"  Mode:      Async parallel (all sources fire simultaneously)")
+    print(f"  Sources:   JSearch · Adzuna · Greenhouse ({len(GREENHOUSE_COMPANIES)} cos)")
+    print(f"             Lever ({len(LEVER_COMPANIES)} cos) · Muse · USAJobs")
+    print(f"             ClearanceJobs · iCIMS")
+    print(f"  Mode:      ThreadPoolExecutor parallel (max {MAX_WORKERS} workers)")
     print(f"  Threshold: {ENRICHMENT_SCORE_THRESHOLD}+ score to pass enrichment")
     print("═" * 60 + "\n")
 
     start_time = time.time()
+    all_results: List[Dict[str, Any]] = []
 
-    # ── Run async sources in parallel ─────────────────────────────────────────
-    print("[1/3] Running async sources (JSearch, Adzuna, Greenhouse, Lever, Muse)...")
-    async_jobs = asyncio.run(run_async_sources(profile))
-    async_time = time.time() - start_time
-    print(f"  → {len(async_jobs)} jobs from async sources in {async_time:.1f}s")
+    # ── Run parallel sources simultaneously using threads ─────────────────────
+    print("[1/3] Running parallel sources...")
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = {
+            ex.submit(fetch_jsearch, profile):      "JSearch",
+            ex.submit(fetch_adzuna, profile):       "Adzuna",
+            ex.submit(fetch_greenhouse, profile):   "Greenhouse",
+            ex.submit(fetch_lever, profile):        "Lever",
+            ex.submit(fetch_muse, profile):         "Muse",
+        }
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                jobs = future.result()
+                all_results.extend(jobs)
+            except Exception as e:
+                print(f"  [{name}] Failed: {e}")
+
+    parallel_time = time.time() - start_time
+    print(f"  → {len(all_results)} jobs from parallel sources in {parallel_time:.1f}s")
 
     # ── Run sync sources (rate-limited APIs) ──────────────────────────────────
     print("[2/3] Running sync sources (USAJobs, ClearanceJobs, iCIMS)...")
-    sync_jobs = []
-    sync_jobs.extend(fetch_usajobs(profile))
-    sync_jobs.extend(fetch_clearancejobs(profile))
-    sync_jobs.extend(fetch_icims(profile))
-    sync_time = time.time() - start_time - async_time
-    print(f"  → {len(sync_jobs)} jobs from sync sources in {sync_time:.1f}s")
+    all_results.extend(fetch_usajobs(profile))
+    all_results.extend(fetch_clearancejobs(profile))
+    all_results.extend(fetch_icims(profile))
+    sync_time = time.time() - start_time - parallel_time
+    print(f"  → Sync sources complete in {sync_time:.1f}s")
 
     # ── Merge, dedupe, sort ────────────────────────────────────────────────────
-    all_results = async_jobs + sync_jobs
     all_results = dedupe_jobs(all_results)
     all_results.sort(key=lambda x: int(x.get("discovery_score", 0)), reverse=True)
     all_results = all_results[:MAX_RAW_POOL]
@@ -1216,23 +1008,20 @@ def discover_jobs_from_profile(
         reranked = [r for r in all_results if r.get("discovery_score", 0) >= ENRICHMENT_SCORE_THRESHOLD][:target_final_jobs]
 
     final_path = write_csv(final_output_path, reranked)
-
     total_time = time.time() - start_time
-    print(f"[Discovery] Final CSV: {final_path} ({len(reranked)} jobs)")
-    print(f"[Discovery] Total runtime: {total_time:.1f}s ({total_time/60:.1f} min)")
+    print(f"[Discovery] Final: {final_path} ({len(reranked)} jobs in {total_time:.1f}s total)")
     print("\n" + "═" * 60)
 
-    # ── Save seen URLs for delta detection ─────────────────────────────────────
+    # ── Save seen URLs ─────────────────────────────────────────────────────────
     seen = load_seen_urls()
-    new_urls = {r["job_url"] for r in all_results if r.get("job_url")}
-    seen.update(new_urls)
+    seen.update(r["job_url"] for r in all_results if r.get("job_url"))
     save_seen_urls(seen)
 
     return {"raw": raw_path, "final": final_path}
 
 
 # ─────────────────────────────────────────────
-# SECTION 14: ENTRYPOINT
+# SECTION 13: ENTRYPOINT
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
