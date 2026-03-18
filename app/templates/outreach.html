@@ -7,6 +7,31 @@
 
   <!-- LEFT: INPUT -->
   <div>
+
+    <!-- JOB SELECTOR -->
+    {% if jobs %}
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title" style="margin-bottom:12px">Select from Discovered Jobs</div>
+      <select class="form-select" id="jobSelector" onchange="fillFromJob()" style="width:100%">
+        <option value="">— Choose a job to pre-fill —</option>
+        {% for job in jobs %}
+        <option value="{{ loop.index0 }}"
+          data-title="{{ job.job_title | replace('"', '&quot;') }}"
+          data-company="{{ job.company_name | replace('"', '&quot;') }}"
+          data-location="{{ job.job_location | replace('"', '&quot;') }}"
+          data-score="{{ job.overall_fit_score }}"
+          data-reasoning="{{ job.fit_reasoning | replace('"', '&quot;') | truncate(200, True, '') }}"
+          data-angle="{{ job.outreach_angle | replace('"', '&quot;') }}"
+          data-required="{{ job.required_skills | replace('"', '&quot;') }}"
+          data-recruiter-name="{{ job.recruiter_contact_name | replace('"', '&quot;') }}"
+          data-recruiter-email="{{ job.recruiter_contact_email | replace('"', '&quot;') }}">
+          [{{ job.overall_fit_score }}] {{ job.job_title }} — {{ job.company_name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
     <div class="panel">
       <div class="panel-title" style="margin-bottom:16px">Generate Outreach Email</div>
 
@@ -97,7 +122,7 @@
     <div id="outputPlaceholder" class="panel" style="text-align:center;padding:60px 20px">
       <div style="font-size:32px;margin-bottom:12px">✉</div>
       <div style="color:var(--text-secondary);font-size:14px;font-weight:600;margin-bottom:8px">Your outreach email will appear here</div>
-      <div style="color:var(--text-muted);font-size:13px">Fill in the job details on the left and hit Generate</div>
+      <div style="color:var(--text-muted);font-size:13px">Select a job from the dropdown or fill in details manually, then hit Generate</div>
     </div>
   </div>
 
@@ -106,18 +131,38 @@
 
 {% block scripts %}
 <script>
+// Store jobs data for the selector
+const jobsData = {{ jobs | tojson }};
+
+// Fill form from job selector dropdown
+function fillFromJob() {
+  const sel = document.getElementById('jobSelector');
+  const idx = sel.value;
+  if (idx === '') return;
+
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('o-title').value         = opt.dataset.title || '';
+  document.getElementById('o-company').value       = opt.dataset.company || '';
+  document.getElementById('o-location').value      = opt.dataset.location || '';
+  document.getElementById('o-score').value         = opt.dataset.score || '';
+  document.getElementById('o-reasoning').value     = opt.dataset.reasoning || '';
+  document.getElementById('o-angle').value         = opt.dataset.angle || '';
+  document.getElementById('o-recruiter-name').value = opt.dataset.recruiterName || '';
+  document.getElementById('o-recruiter-email').value = opt.dataset.recruiterEmail || '';
+}
+
 // Pre-fill from sessionStorage if coming from dashboard
 window.addEventListener('DOMContentLoaded', () => {
   const stored = sessionStorage.getItem('outreach_job');
   if (stored) {
     try {
       const j = JSON.parse(stored);
-      document.getElementById('o-title').value = j.job_title || '';
-      document.getElementById('o-company').value = j.company_name || '';
-      document.getElementById('o-location').value = j.job_location || '';
-      document.getElementById('o-score').value = j.overall_fit_score || '';
-      document.getElementById('o-reasoning').value = j.fit_reasoning || '';
-      document.getElementById('o-angle').value = j.outreach_angle || '';
+      document.getElementById('o-title').value          = j.job_title || '';
+      document.getElementById('o-company').value        = j.company_name || '';
+      document.getElementById('o-location').value       = j.job_location || '';
+      document.getElementById('o-score').value          = j.overall_fit_score || '';
+      document.getElementById('o-reasoning').value      = j.fit_reasoning || '';
+      document.getElementById('o-angle').value          = j.outreach_angle || '';
       document.getElementById('o-recruiter-name').value = j.recruiter_contact_name || '';
       document.getElementById('o-recruiter-email').value = j.recruiter_contact_email || '';
       sessionStorage.removeItem('outreach_job');
@@ -131,13 +176,13 @@ async function generateOutreach() {
   btn.disabled = true;
 
   const job = {
-    job_title: document.getElementById('o-title').value,
-    company_name: document.getElementById('o-company').value,
-    job_location: document.getElementById('o-location').value,
-    overall_fit_score: document.getElementById('o-score').value,
-    fit_reasoning: document.getElementById('o-reasoning').value,
-    outreach_angle: document.getElementById('o-angle').value,
-    required_skills: '',
+    job_title:          document.getElementById('o-title').value,
+    company_name:       document.getElementById('o-company').value,
+    job_location:       document.getElementById('o-location').value,
+    overall_fit_score:  document.getElementById('o-score').value,
+    fit_reasoning:      document.getElementById('o-reasoning').value,
+    outreach_angle:     document.getElementById('o-angle').value,
+    required_skills:    '',
   };
 
   try {
@@ -146,31 +191,28 @@ async function generateOutreach() {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         job,
-        recruiter_name: document.getElementById('o-recruiter-name').value,
+        recruiter_name:  document.getElementById('o-recruiter-name').value,
         recruiter_email: document.getElementById('o-recruiter-email').value,
-        tone: document.getElementById('o-tone').value,
+        tone:            document.getElementById('o-tone').value,
       }),
     });
     const data = await res.json();
 
-    if (data.error) {
-      alert('Error: ' + data.error);
-      return;
-    }
+    if (data.error) { alert('Error: ' + data.error); return; }
 
-    document.getElementById('o-subject').textContent = data.subject_line || '';
-    document.getElementById('o-body').textContent = data.email_body || '';
+    document.getElementById('o-subject').textContent  = data.subject_line || '';
+    document.getElementById('o-body').textContent     = data.email_body || '';
     document.getElementById('o-followup').textContent = data.follow_up_line || '';
 
     const hooks = data.key_hooks || [];
     document.getElementById('o-hooks').innerHTML = hooks.map(h => `<span class="hook-tag">${h}</span>`).join('');
 
-    const email = document.getElementById('o-recruiter-email').value;
+    const email   = document.getElementById('o-recruiter-email').value;
     const subject = encodeURIComponent(data.subject_line || '');
-    const body = encodeURIComponent(data.email_body || '');
+    const body    = encodeURIComponent(data.email_body || '');
     document.getElementById('mailtoBtn').href = `mailto:${email}?subject=${subject}&body=${body}`;
 
-    document.getElementById('outputPanel').style.display = 'block';
+    document.getElementById('outputPanel').style.display      = 'block';
     document.getElementById('outputPlaceholder').style.display = 'none';
 
   } catch(err) {
@@ -183,9 +225,8 @@ async function generateOutreach() {
 
 function copyFullEmail() {
   const subject = document.getElementById('o-subject').textContent;
-  const body = document.getElementById('o-body').textContent;
-  const full = `Subject: ${subject}\n\n${body}`;
-  navigator.clipboard.writeText(full).then(() => alert('Copied to clipboard!'));
+  const body    = document.getElementById('o-body').textContent;
+  navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(() => alert('Copied!'));
 }
 </script>
 {% endblock %}
