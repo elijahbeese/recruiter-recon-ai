@@ -1,1 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Application Tracker{% endblock %}
+{% block page_title %}Application Tracker{% endblock %}
 
+{% block content %}
+<div style="margin-bottom:16px;display:flex;gap:10px;align-items:center">
+  <div style="font-size:13px;color:var(--text-secondary)">Drag cards between columns to update status. Changes save automatically.</div>
+</div>
+
+<div class="kanban-board">
+
+  {% for col_id, col_label, col_color in [
+    ('discovered', 'Discovered', 'var(--text-muted)'),
+    ('targeted', 'Targeted', 'var(--blue)'),
+    ('applied', 'Applied', 'var(--purple)'),
+    ('interviewing', 'Interviewing', 'var(--amber)'),
+    ('offer', 'Offer', 'var(--green)'),
+    ('rejected', 'Rejected', 'var(--red)')
+  ] %}
+  <div class="kanban-col" id="col-{{ col_id }}" ondragover="event.preventDefault()" ondrop="drop(event,'{{ col_id }}')">
+    <div class="kanban-col-title" style="color:{{ col_color }}">
+      {{ col_label }}
+      <span class="kanban-count" id="count-{{ col_id }}">{{ statuses[col_id]|length }}</span>
+    </div>
+    {% for job in statuses[col_id] %}
+    <div class="kanban-card"
+         draggable="true"
+         id="card-{{ loop.index }}-{{ col_id }}"
+         data-url="{{ job.job_url }}"
+         data-status="{{ col_id }}"
+         ondragstart="drag(event)"
+         onclick="openTrackerModal('{{ job.job_url | replace("'", "\\'") }}', '{{ job.job_title | replace("'", "\\'") }}', '{{ job.company_name | replace("'", "\\'") }}', '{{ col_id }}', '{{ job.notes | replace("'", "\\'") }}', '{{ job.applied_date }}')">
+      <div class="kanban-card-title">{{ job.job_title[:45] }}{% if job.job_title|length > 45 %}...{% endif %}</div>
+      <div class="kanban-card-company">{{ job.company_name }} · <span style="color:var(--text-muted);font-size:10px;font-family:var(--font-mono)">{{ job.overall_fit_score }}</span></div>
+      {% if job.applied_date %}
+      <div style="font-size:10px;color:var(--text-muted);margin-top:4px;font-family:var(--font-mono)">{{ job.applied_date }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+</div>
+
+<!-- TRACKER MODAL -->
+<div class="modal-overlay" id="trackerModal">
+  <div class="modal" style="max-width:500px">
+    <button class="modal-close" onclick="closeModal('trackerModal')">✕</button>
+    <div class="modal-title" id="tm-title"></div>
+    <div class="modal-meta" id="tm-company"></div>
+
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-select" id="tm-status">
+        <option value="discovered">Discovered</option>
+        <option value="targeted">Targeted</option>
+        <option value="applied">Applied</option>
+        <option value="interviewing">Interviewing</option>
+        <option value="offer">Offer</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Date Applied</label>
+      <input type="date" class="form-input" id="tm-date">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-textarea" id="tm-notes" placeholder="Interview notes, contacts, follow-up reminders..."></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-primary" onclick="saveTrackerUpdate()" id="tm-save">Save</button>
+      <button class="btn btn-ghost" onclick="closeModal('trackerModal')">Cancel</button>
+    </div>
+
+    <input type="hidden" id="tm-url">
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let dragUrl = null;
+
+function drag(e) {
+  dragUrl = e.target.dataset.url;
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+async function drop(e, newStatus) {
+  e.preventDefault();
+  if (!dragUrl) return;
+  await updateStatus(dragUrl, newStatus);
+  location.reload();
+}
+
+function openTrackerModal(url, title, company, status, notes, date) {
+  document.getElementById('tm-url').value = url;
+  document.getElementById('tm-title').textContent = title;
+  document.getElementById('tm-company').textContent = company;
+  document.getElementById('tm-status').value = status;
+  document.getElementById('tm-notes').value = notes || '';
+  document.getElementById('tm-date').value = date || '';
+  openModal('trackerModal');
+}
+
+async function saveTrackerUpdate() {
+  const btn = document.getElementById('tm-save');
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  const url = document.getElementById('tm-url').value;
+  const status = document.getElementById('tm-status').value;
+  const notes = document.getElementById('tm-notes').value;
+  const date = document.getElementById('tm-date').value;
+
+  await updateStatus(url, status, notes, date);
+
+  closeModal('trackerModal');
+  location.reload();
+}
+
+async function updateStatus(url, status, notes='', date='') {
+  await fetch('/api/tracker/update', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ url, status, notes, applied_date: date }),
+  });
+}
+</script>
+{% endblock %}
